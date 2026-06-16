@@ -46,7 +46,7 @@ TOOL_LABELS = {
     "select_freeform": "Free-form selection",
 }
 
-TOOLS_PER_ROW = 5
+TOOLS_PER_ROW = 7
 
 
 def _render_tool_icon(tool_name: str, size: int = 24) -> QIcon:
@@ -62,8 +62,32 @@ def _render_tool_icon(tool_name: str, size: int = 24) -> QIcon:
     s4, s8, s3 = size // 4, size // 8, size // 3
 
     if tool_name == "pencil":
-        painter.drawLine(cx - s4, cy + s4, cx + s4, cy - s4)
-        painter.drawRect(cx + s4 - 2, cy - s4 - 2, 4, 4)
+        body = QPainterPath()
+        body.moveTo(cx - s4, cy + s4)
+        body.lineTo(cx - s4 + 4, cy + s4 + 3)
+        body.lineTo(cx + s4 + 1, cy - s4 + 2)
+        body.lineTo(cx + s4 - 1, cy - s4)
+        body.closeSubpath()
+        painter.setBrush(QColor(220, 180, 60))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(body)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        body2 = QPainterPath()
+        body2.moveTo(cx - s4, cy + s4)
+        body2.lineTo(cx - s4 + 4, cy + s4 + 3)
+        body2.lineTo(cx + s4 + 1, cy - s4 + 2)
+        body2.lineTo(cx + s4 - 1, cy - s4)
+        body2.closeSubpath()
+        painter.drawPath(body2)
+        tip = QPainterPath()
+        tip.moveTo(cx + s4, cy - s4)
+        tip.lineTo(cx + s4 + 4, cy - s4 + 2)
+        tip.lineTo(cx + s4 + 1, cy - s4 + 4)
+        tip.closeSubpath()
+        painter.setBrush(QColor(60, 60, 60))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(tip)
     elif tool_name == "brush":
         painter.setBrush(brush)
         painter.drawEllipse(cx - s4, cy - s4, size // 2, size // 2)
@@ -74,13 +98,24 @@ def _render_tool_icon(tool_name: str, size: int = 24) -> QIcon:
         painter.fillRect(rect, QColor(200, 200, 255))
         painter.drawRect(rect)
     elif tool_name == "fill":
-        painter.drawLine(cx - s8, cy + s4, cx + s4, cy - s4)
-        painter.drawLine(cx - s8, cy + s4, cx, cy + s4 + s4)
-        painter.drawLine(cx, cy + s4 + s4, cx + s4, cy - s4)
+        bucket = QPainterPath()
+        bucket.moveTo(cx - s4, cy - s4 + 2)
+        bucket.lineTo(cx - s4, cy + s4)
+        bucket.lineTo(cx + s4, cy + s4)
+        bucket.lineTo(cx + s4, cy - s4 + 2)
+        bucket.closeSubpath()
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(bucket)
+        painter.drawLine(cx - s4, cy - s4 + 2, cx + s4, cy - s4 + 2)
+        painter.drawLine(cx - s4, cy - s4 + 2, cx - s4 - 3, cy - s4)
+        painter.drawLine(cx + s4, cy - s4 + 2, cx + s4 + 3, cy - s4)
+        painter.setBrush(QColor(80, 80, 80))
+        painter.setPen(Qt.PenStyle.NoPen)
+        for dx in (-2, 0, 2):
+            painter.drawRect(cx + dx, cy + s4 - 1, 1, 3)
     elif tool_name == "picker":
-        painter.drawRect(cx - s4, cy - s4, s4, s4 + s4)
-        painter.drawLine(cx, cy + s4 + s4, cx + s4, cy + s4 + s4 + s4)
-        painter.drawLine(cx + s4, cy + s4 + s4 + s4, cx + s4 + 2, cy + s4 + s4 + s4 - 2)
+        painter.drawLine(cx - s4, cy + s4, cx + s4, cy - s4)
+        painter.drawRect(cx + s4 - 2, cy - s4 - 2, 4, 4)
     elif tool_name == "magnifier":
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(cx - s3, cy - s3, s3 * 2, s3 * 2)

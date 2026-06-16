@@ -420,7 +420,7 @@ class MainWindow(QMainWindow):
 
         self._text_font_combo = QComboBox()
         self._text_font_combo.addItems(QFontDatabase().families())
-        self._text_font_combo.setCurrentText("Sans")
+        self._text_font_combo.setCurrentText("FreeSans")
         self._text_font_combo.setMinimumWidth(120)
         self._text_font_combo.currentTextChanged.connect(self._on_text_font_changed)
         text_grid.addWidget(self._text_font_combo, 0, 0, 1, 4)
