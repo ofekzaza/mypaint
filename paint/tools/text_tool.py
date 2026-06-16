@@ -47,6 +47,7 @@ class TextTool(BaseTool):
         self._char_underline: list[bool] = []
         self._char_strikeout: list[bool] = []
         self._char_color: list[QColor] = []
+        self._char_size: list[int] = []
         self._text_color = QColor(0, 0, 0)
         self._background_mode = "transparent"
         self._background_color = QColor(255, 255, 255)
@@ -76,6 +77,12 @@ class TextTool(BaseTool):
         self._font.setItalic(self._italic)
         self._font.setUnderline(self._underline)
         self._font.setStrikeOut(self._strikeout)
+
+    def set_size(self, size: int) -> None:
+        self._font.setPointSize(max(1, size))
+
+    def current_size(self) -> int:
+        return self._font.pointSize()
 
     def set_bold(self, bold: bool) -> None:
         self._bold = bold
@@ -115,6 +122,8 @@ class TextTool(BaseTool):
                 fmt.setForeground(QBrush(self._char_color[i]))
             else:
                 fmt.setForeground(QBrush(self.canvas.color1))
+            if i < len(self._char_size):
+                fmt.setFontPointSize(float(self._char_size[i]))
             if i < len(self._char_bold) and self._char_bold[i]:
                 fmt.setFontWeight(QFont.Weight.Bold)
             if i < len(self._char_italic) and self._char_italic[i]:
@@ -166,6 +175,7 @@ class TextTool(BaseTool):
         self._char_underline.clear()
         self._char_strikeout.clear()
         self._char_color.clear()
+        self._char_size.clear()
         self._resize_handle = -1
         self.canvas.update_preview()
         self.editing_finished.emit()
@@ -356,6 +366,7 @@ class TextTool(BaseTool):
             self._char_underline.insert(pos, attrs[2])
             self._char_strikeout.insert(pos, attrs[3])
             self._char_color.insert(pos, QColor(self.canvas.color1))
+            self._char_size.insert(pos, self._font.pointSize())
 
     def _remove_char_format(self, pos: int, count: int = 1) -> None:
         for _ in range(count):
@@ -366,6 +377,8 @@ class TextTool(BaseTool):
                 del self._char_strikeout[pos]
                 if pos < len(self._char_color):
                     del self._char_color[pos]
+                if pos < len(self._char_size):
+                    del self._char_size[pos]
 
     def key_press_event(self, event: QKeyEvent) -> None:
         if not self._editing:

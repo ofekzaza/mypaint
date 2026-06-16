@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
         self._setup_widgets()
         self._setup_menus()
         self._setup_toolbar()
+        self._setup_toolbar_menu()
         self._setup_statusbar()
 
     def _setup_canvas(self) -> None:
@@ -288,16 +289,16 @@ class MainWindow(QMainWindow):
         self._add_action(edit_menu, "&Invert Selection", None, self._edit_invert_selection)
         self._add_action(edit_menu, "&Delete", "Delete", self._edit_delete)
 
-        view_menu = menubar.addMenu("&View")
-        self._add_action(view_menu, "Zoom &In", None, lambda: self.canvas.zoom_in())
-        self._add_action(view_menu, "Zoom &Out", None, lambda: self.canvas.zoom_out())
-        self._add_action(view_menu, "Actual &Pixels", None, self.canvas.actual_pixels)
-        self._add_action(view_menu, "Fit to &Window", None, self.canvas.fit_to_window)
-        view_menu.addSeparator()
-        self._add_action(view_menu, "&Full Screen", "F11", self._toggle_fullscreen)
-        view_menu.addSeparator()
-        self._add_action(view_menu, "&Thumbnail", None, self._toggle_thumbnail)
-        self._add_action(view_menu, "&Rulers", None, self._toggle_rulers)
+        self._view_menu = menubar.addMenu("&View")
+        self._add_action(self._view_menu, "Zoom &In", None, lambda: self.canvas.zoom_in())
+        self._add_action(self._view_menu, "Zoom &Out", None, lambda: self.canvas.zoom_out())
+        self._add_action(self._view_menu, "Actual &Pixels", None, self.canvas.actual_pixels)
+        self._add_action(self._view_menu, "Fit to &Window", None, self.canvas.fit_to_window)
+        self._view_menu.addSeparator()
+        self._add_action(self._view_menu, "&Full Screen", "F11", self._toggle_fullscreen)
+        self._view_menu.addSeparator()
+        self._add_action(self._view_menu, "&Thumbnail", None, self._toggle_thumbnail)
+        self._add_action(self._view_menu, "&Rulers", None, self._toggle_rulers)
 
         image_menu = menubar.addMenu("&Image")
         self._add_action(image_menu, "&Flip Horizontal", None, self._image_flip_h)
@@ -350,10 +351,12 @@ class MainWindow(QMainWindow):
 
     def _setup_toolbar(self) -> None:
         tb = QToolBar("Tools")
+        tb.setObjectName("main_toolbar")
         tb.setMovable(False)
         tb.setFloatable(False)
         tb.setIconSize(QSize(16, 16))
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+        self._main_toolbar = tb
 
         layout = QHBoxLayout()
         layout.setContentsMargins(4, 2, 4, 2)
@@ -477,6 +480,10 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         tb.addWidget(container)
+
+    def _setup_toolbar_menu(self) -> None:
+        toolbars_menu = self._view_menu.addMenu("Toolbars")
+        toolbars_menu.addAction(self._main_toolbar.toggleViewAction())
 
     def _setup_statusbar(self) -> None:
         sb = self.statusBar()

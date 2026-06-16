@@ -43,7 +43,6 @@ class SelectionTool(BaseTool):
         self._drag_start = QPoint(0, 0)
 
         self._transparent_select = False
-        self._transparent_color = QColor(255, 255, 255)
 
         self._move_origin_rect: QRect | None = None
         self._selection_from_canvas = False
@@ -63,35 +62,40 @@ class SelectionTool(BaseTool):
         self._selection_content = None
         self._freeform_path.clear()
         self._rotation_angle = 0.0
+        self._moving = False
+        self._resizing = False
         self.canvas.clear_selection_overlay()
         self.canvas.update_preview()
 
     def select_all(self) -> None:
+        if self._has_selection:
+            self.commit_selection()
         img = self.canvas.image()
         self._selection_rect = QRect(0, 0, img.width(), img.height())
         self._selection_content = img.copy(self._selection_rect)
         self._has_selection = True
         self._selection_from_canvas = True
+        self._move_origin_rect = QRect(self._selection_rect)
         self._rotation_angle = 0.0
         self.canvas.update_preview()
 
     def invert_selection(self) -> None:
-        if not self._has_selection:
-            self.select_all()
-            return
-
+        if self._has_selection:
+            self.commit_selection()
         img = self.canvas.image()
         full_rect = QRect(0, 0, img.width(), img.height())
         self._selection_rect = full_rect
         self._selection_content = img.copy(self._selection_rect)
         self._selection_from_canvas = True
+        self._move_origin_rect = QRect(self._selection_rect)
         self.canvas.update_preview()
 
     def cut_selection(self) -> QImage | None:
         if not self._has_selection or self._selection_content is None:
             return None
         content = self._selection_content.copy()
-        self._delete_selection()
+        self._apply_to_canvas()
+        self.reset_selection()
         return content
 
     def copy_selection(self) -> QImage | None:
@@ -100,6 +104,10 @@ class SelectionTool(BaseTool):
         return self._selection_content.copy()
 
     def paste_selection(self, image: QImage, pos: QPoint | None = None) -> None:
+        # Commit any existing floating selection first
+        if self._has_selection:
+            self.commit_selection()
+
         self._selection_content = image.copy()
         w, h = image.width(), image.height()
         img_w = self.canvas.image().width()
@@ -115,9 +123,64 @@ class SelectionTool(BaseTool):
         self._rotation_angle = 0.0
         self._selection_from_canvas = False
         self._move_origin_rect = None
-        self._moving = True
-        self._drag_start = QPoint(x, y)
+        self._moving = False
+        self._resizing = False
         self.canvas.update_preview()
+
+    def _get_rendered_content(self) -> QImage | None:
+        if self._selection_content is None:
+            return None
+        if not self._transparent_select:
+            return self._selection_content
+        result = self._selection_content.convertToFormat(
+            QImage.Format.Format_ARGB32_Premultiplied
+        )
+        key = QColor(self.canvas.color2)
+        mask = result.createMaskFromColor(key.rgb(), Qt.MaskMode.MaskOutColor)
+        result.setAlphaChannel(mask)
+        return result
+
+    def _apply_to_canvas(self) -> None:
+        """Apply floating selection to canvas without destroying the selection state."""
+        if self._selection_content is None or not self._has_selection:
+            return
+
+        img = self.canvas.image()
+        self.canvas._undo.push_state(img.copy())
+
+        painter = QPainter(img)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+
+        if (
+            self._selection_from_canvas
+            and self._move_origin_rect is not None
+            and self._move_origin_rect != self._selection_rect
+        ):
+            painter.fillRect(self._move_origin_rect, Qt.GlobalColor.white)
+
+        painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
+
+        if self._rotation_angle != 0:
+            transform = QTransform()
+            center = self._selection_rect.center()
+            transform.translate(center.x(), center.y())
+            transform.rotate(self._rotation_angle)
+            transform.translate(-center.x(), -center.y())
+            painter.setTransform(transform)
+
+        content = self._get_rendered_content()
+        if content:
+            painter.drawImage(self._selection_rect.topLeft(), content)
+        painter.end()
+
+        self.canvas.update_image_item()
+        self.canvas._dirty = True
+        self._selection_from_canvas = False
+        self._move_origin_rect = None
+
+    def commit_selection(self) -> None:
+        self._apply_to_canvas()
+        self.reset_selection()
 
     def _delete_selection(self) -> None:
         if not self._has_selection:
@@ -189,9 +252,23 @@ class SelectionTool(BaseTool):
             r.setLeft(r.left() + delta.x())
         return r.normalized()
 
+    def _scale_content_to_rect(self, new_rect: QRect) -> None:
+        if self._selection_content is None or new_rect.isEmpty():
+            return
+        if not self._selection_from_canvas and self._selection_content is not None:
+            self._selection_content = self._selection_content.scaled(
+                new_rect.size(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+
     def mouse_press_event(self, event: QMouseEvent) -> None:
         super().mouse_press_event(event)
         pos = self.canvas.map_scene_to_image(event.position().toPoint())
+
+        if event.button() == Qt.MouseButton.RightButton and self._has_selection:
+            self.commit_selection()
+            return
 
         if event.button() == Qt.MouseButton.LeftButton and self._has_selection:
             handle = self._get_handle_at(pos)
@@ -211,7 +288,7 @@ class SelectionTool(BaseTool):
                 self._move_origin_rect = QRect(self._selection_rect)
                 return
 
-            self._commit_move()
+            self.commit_selection()
 
         if event.button() == Qt.MouseButton.LeftButton:
             self._selecting = True
@@ -225,8 +302,9 @@ class SelectionTool(BaseTool):
 
         if self._resizing and self._start_point:
             delta = pos - self._start_point
-            self._selection_rect = self._resize_rect_from_handle(self._resize_handle, delta)
-            self._selection_content = self.canvas.image().copy(self._selection_rect)
+            new_rect = self._resize_rect_from_handle(self._resize_handle, delta)
+            self._scale_content_to_rect(new_rect)
+            self._selection_rect = new_rect
             self._start_point = pos
             self.canvas.update_preview()
             return
@@ -234,12 +312,9 @@ class SelectionTool(BaseTool):
         if self._moving:
             dx = pos.x() - self._drag_start.x()
             dy = pos.y() - self._drag_start.y()
-            img = self.canvas.image()
-            new_x = self._selection_rect.x() + dx
-            new_y = self._selection_rect.y() + dy
-            new_x = max(0, min(new_x, img.width() - self._selection_rect.width()))
-            new_y = max(0, min(new_y, img.height() - self._selection_rect.height()))
-            self._selection_rect.moveTopLeft(QPoint(new_x, new_y))
+            self._selection_rect.moveTopLeft(
+                QPoint(self._selection_rect.x() + dx, self._selection_rect.y() + dy)
+            )
             self._drag_start = pos
             self.canvas.update_preview()
             return
@@ -288,54 +363,12 @@ class SelectionTool(BaseTool):
 
         if self._moving:
             self._moving = False
-            self._commit_move()
             return
 
         if self._resizing:
             self._resizing = False
             self._resize_handle = -1
-            self._commit_move()
             return
-
-    def _commit_move(self) -> None:
-        if self._selection_content is None or not self._has_selection:
-            return
-
-        painter = QPainter(self.canvas.image())
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
-
-        # Fill origin first, so overlap gets white, then clear+drawn content overwrites it
-        if (
-            self._selection_from_canvas
-            and self._move_origin_rect is not None
-            and self._move_origin_rect != self._selection_rect
-        ):
-            painter.fillRect(self._move_origin_rect, QColor(self.canvas.color2))
-
-        if self._transparent_select:
-            self._selection_content.createMaskFromColor(
-                self._transparent_color, Qt.MaskMode.MaskOutColor
-            )
-            painter.setClipRect(self._selection_rect)
-            painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
-            painter.setClipping(False)
-        else:
-            painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
-
-        if self._rotation_angle != 0:
-            transform = QTransform()
-            center = self._selection_rect.center()
-            transform.translate(center.x(), center.y())
-            transform.rotate(self._rotation_angle)
-            transform.translate(-center.x(), -center.y())
-            painter.setTransform(transform)
-
-        painter.drawImage(self._selection_rect.topLeft(), self._selection_content)
-
-        painter.end()
-        self.canvas.commit_drawing()
-        self.canvas.update_preview()
-        self.reset_selection()
 
     def paint_overlay(self, painter: QPainter) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
@@ -355,21 +388,38 @@ class SelectionTool(BaseTool):
 
         if self._has_selection:
             img_rect = QRectF(self._selection_rect)
-            painter.setPen(QPen(QColor(0, 120, 255), 1, Qt.PenStyle.DashLine))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(img_rect)
 
-            if self._selection_content and (self._moving or self._resizing):
+            # Draw origin ghost (for canvas selections during move)
+            if (
+                self._moving
+                and self._selection_from_canvas
+                and self._move_origin_rect is not None
+                and self._move_origin_rect != self._selection_rect
+            ):
+                painter.fillRect(
+                    QRectF(self._move_origin_rect), Qt.GlobalColor.white
+                )
+
+            # Draw floating content
+            if self._selection_content:
                 painter.save()
                 if self._rotation_angle != 0:
                     center = img_rect.center()
                     painter.translate(center)
                     painter.rotate(self._rotation_angle)
                     painter.translate(-center)
-                painter.setOpacity(0.7)
-                painter.drawImage(self._selection_rect.topLeft(), self._selection_content)
+                painter.setOpacity(1.0)
+                content = self._get_rendered_content()
+                if content:
+                    painter.drawImage(self._selection_rect.topLeft(), content)
                 painter.restore()
 
+            # Draw border
+            painter.setPen(QPen(QColor(0, 120, 255), 1, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(img_rect)
+
+            # Draw handles
             handles = [
                 (self._selection_rect.topLeft(), Qt.CursorShape.SizeFDiagCursor),
                 (self._selection_rect.topRight(), Qt.CursorShape.SizeBDiagCursor),
@@ -404,3 +454,8 @@ class SelectionTool(BaseTool):
             self.delete_selection()
         elif event.key() == Qt.Key.Key_Escape:
             self.reset_selection()
+
+    def deactivate(self) -> None:
+        if self._has_selection:
+            self.commit_selection()
+        super().deactivate()
