@@ -9,6 +9,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
     QPolygonF,
+    QRegion,
     QTransform,
 )
 
@@ -156,7 +157,14 @@ class SelectionTool(BaseTool):
             and self._move_origin_rect is not None
             and self._move_origin_rect != self._selection_rect
         ):
-            painter.fillRect(self._move_origin_rect, Qt.GlobalColor.white)
+            painter.save()
+            region = QRegion(self._move_origin_rect)
+            region = region.subtracted(QRegion(self._selection_rect))
+            if not region.isEmpty():
+                painter.setClipRegion(region)
+                painter.fillRect(self._move_origin_rect, Qt.GlobalColor.white)
+                painter.setClipping(False)
+            painter.restore()
 
         if not self._transparent_select:
             painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
@@ -260,12 +268,11 @@ class SelectionTool(BaseTool):
     def _scale_content_to_rect(self, new_rect: QRect) -> None:
         if self._selection_content is None or new_rect.isEmpty():
             return
-        if not self._selection_from_canvas and self._selection_content is not None:
-            self._selection_content = self._selection_content.scaled(
-                new_rect.size(),
-                Qt.AspectRatioMode.IgnoreAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
+        self._selection_content = self._selection_content.scaled(
+            new_rect.size(),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
 
     def mouse_press_event(self, event: QMouseEvent) -> None:
         super().mouse_press_event(event)
@@ -401,9 +408,16 @@ class SelectionTool(BaseTool):
                 and self._move_origin_rect is not None
                 and self._move_origin_rect != self._selection_rect
             ):
-                painter.fillRect(
-                    QRectF(self._move_origin_rect), Qt.GlobalColor.white
-                )
+                painter.save()
+                region = QRegion(self._move_origin_rect)
+                region = region.subtracted(QRegion(self._selection_rect))
+                if not region.isEmpty():
+                    painter.setClipRegion(region)
+                    painter.fillRect(
+                        QRectF(self._move_origin_rect), Qt.GlobalColor.white
+                    )
+                    painter.setClipping(False)
+                painter.restore()
 
             # Draw floating content
             if self._selection_content:
