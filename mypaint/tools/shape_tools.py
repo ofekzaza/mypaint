@@ -3,14 +3,12 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QCursor,
-    QImage,
     QKeyEvent,
     QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
     QPolygonF,
-    QRegion,
 )
 
 from .base_tool import BaseTool
@@ -47,6 +45,10 @@ class ShapeTool(BaseTool):
         self._resizing = False
         self._resize_handle = -1
         self._resize_start: QPointF | None = None
+        self._moving = False
+        self._move_start: QPointF | None = None
+        self._move_origin_start: QPointF | None = None
+        self._move_origin_end: QPointF | None = None
 
     def name(self) -> str:
         return self._shape_name.capitalize()
@@ -79,6 +81,10 @@ class ShapeTool(BaseTool):
         self._resizing = False
         self._resize_handle = -1
         self._resize_start = None
+        self._moving = False
+        self._move_start = None
+        self._move_origin_start = None
+        self._move_origin_end = None
 
     def _get_committal_rect(self) -> QRectF:
         if self._committal_start is None or self._committal_end is None:
@@ -190,12 +196,17 @@ class ShapeTool(BaseTool):
                     self._resize_start = QPointF(pos)
                     return
                 rect = self._get_committal_rect()
-                if not rect.contains(QPointF(pos)):
-                    self._commit_shape()
-                    self._drawing = True
-                    self._start_point = pos
-                    self._current_point = pos
-                    self._pressed_button = event.button()
+                if rect.contains(QPointF(pos)):
+                    self._moving = True
+                    self._move_start = QPointF(pos)
+                    self._move_origin_start = QPointF(self._committal_start)
+                    self._move_origin_end = QPointF(self._committal_end)
+                    return
+                self._commit_shape()
+                self._drawing = True
+                self._start_point = pos
+                self._current_point = pos
+                self._pressed_button = event.button()
                 return
             return
 
@@ -219,10 +230,19 @@ class ShapeTool(BaseTool):
             self.canvas.update_preview()
             return
 
+        if self._moving and self._move_start:
+            delta = QPointF(pos) - self._move_start
+            self._committal_start = self._move_origin_start + delta
+            self._committal_end = self._move_origin_end + delta
+            self.canvas.update_preview()
+            return
+
         if self._committal:
             handle = self._get_handle_at(pos)
             if handle >= 0:
                 self.canvas.setCursor(self._cursor_for_handle(handle))
+            elif self._get_committal_rect().contains(QPointF(pos)):
+                self.canvas.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
             else:
                 self.canvas.setCursor(self.cursor())
             return
@@ -237,6 +257,13 @@ class ShapeTool(BaseTool):
             self._resizing = False
             self._resize_handle = -1
             self._resize_start = None
+            super().mouse_release_event(event)
+            return
+        if self._moving:
+            self._moving = False
+            self._move_start = None
+            self._move_origin_start = None
+            self._move_origin_end = None
             super().mouse_release_event(event)
             return
         if self._drawing:
@@ -254,6 +281,13 @@ class ShapeTool(BaseTool):
             event.accept()
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._committal:
             self._commit_shape()
+            event.accept()
+        elif event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down) and self._committal:
+            dx = (1 if event.key() == Qt.Key.Key_Right else -1) if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right) else 0
+            dy = (1 if event.key() == Qt.Key.Key_Down else -1) if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down) else 0
+            self._committal_start += QPointF(dx, dy)
+            self._committal_end += QPointF(dx, dy)
+            self.canvas.update_preview()
             event.accept()
         elif event.key() == Qt.Key.Key_Shift:
             self._shift_pressed = True

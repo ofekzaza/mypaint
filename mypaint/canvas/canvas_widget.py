@@ -21,6 +21,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
+    QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
 )
@@ -57,6 +58,12 @@ class CanvasWidget(QGraphicsView):
         self._preview_item.setPixmap(self._preview_pixmap)
         self._preview_item.setZValue(2)
         self._scene.addItem(self._preview_item)
+
+        self._border_item = QGraphicsRectItem()
+        self._border_item.setZValue(1)
+        self._border_item.setPen(QPen(QColor(80, 80, 80), 2))
+        self._border_item.setBrush(Qt.BrushStyle.NoBrush)
+        self._scene.addItem(self._border_item)
 
         self._selection_overlay_item = QGraphicsPixmapItem()
         self._selection_overlay_item.setZValue(3)
@@ -220,10 +227,15 @@ class CanvasWidget(QGraphicsView):
         self._scene.update()
         self.update_selection_overlay()
 
+    def _update_border(self) -> None:
+        r = QRectF(0, 0, self._buffer.width(), self._buffer.height())
+        self._border_item.setRect(r)
+
     def update_image_item(self) -> None:
         pixmap = QPixmap.fromImage(self._buffer.image)
         self._image_item.setPixmap(pixmap)
         self._scene.setSceneRect(QRectF(pixmap.rect()))
+        self._update_border()
 
         if self._fit_to_window:
             self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)

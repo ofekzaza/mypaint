@@ -7,9 +7,9 @@ from PySide6.QtGui import (
     QKeyEvent,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPen,
     QPolygonF,
-    QRegion,
     QTransform,
 )
 
@@ -157,14 +157,7 @@ class SelectionTool(BaseTool):
             and self._move_origin_rect is not None
             and self._move_origin_rect != self._selection_rect
         ):
-            painter.save()
-            region = QRegion(self._move_origin_rect)
-            region = region.subtracted(QRegion(self._selection_rect))
-            if not region.isEmpty():
-                painter.setClipRegion(region)
-                painter.fillRect(self._move_origin_rect, Qt.GlobalColor.white)
-                painter.setClipping(False)
-            painter.restore()
+            painter.fillRect(self._move_origin_rect, Qt.GlobalColor.white)
 
         if not self._transparent_select:
             painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
@@ -359,15 +352,41 @@ class SelectionTool(BaseTool):
                     self._selection_rect = QRect(
                         self._start_point, self._current_point
                     ).normalized()
-                else:
-                    if len(self._freeform_path) >= 2:
-                        poly = QPolygonF([QPointF(p) for p in self._freeform_path])
-                        self._selection_rect = poly.boundingRect().toRect()
-                if self._selection_rect.width() > 0 and self._selection_rect.height() > 0:
-                    self._selection_content = self.canvas.image().copy(self._selection_rect)
-                    self._has_selection = True
-                    self._selection_from_canvas = True
-                    self._move_origin_rect = QRect(self._selection_rect)
+                    if self._selection_rect.width() > 0 and self._selection_rect.height() > 0:
+                        self._selection_content = self.canvas.image().copy(self._selection_rect)
+                        self._has_selection = True
+                        self._selection_from_canvas = True
+                        self._move_origin_rect = QRect(self._selection_rect)
+                    else:
+                        self.reset_selection()
+                elif len(self._freeform_path) >= 2:
+                    poly = QPolygonF([QPointF(p) for p in self._freeform_path])
+                    self._selection_rect = poly.boundingRect().toRect()
+                    bounds = self.canvas.image().rect()
+                    if not bounds.contains(self._selection_rect):
+                        self._selection_rect = self._selection_rect.intersected(bounds)
+                    if self._selection_rect.width() > 0 and self._selection_rect.height() > 0:
+                        content = self.canvas.image().copy(self._selection_rect)
+                        pts = []
+                        ox, oy = self._selection_rect.x(), self._selection_rect.y()
+                        for p in self._freeform_path:
+                            pts.append(QPointF(p.x() - ox, p.y() - oy))
+                        local_poly = QPolygonF(pts)
+                        local_path = QPainterPath()
+                        local_path.addPolygon(local_poly)
+                        result = QImage(self._selection_rect.size(), QImage.Format.Format_ARGB32_Premultiplied)
+                        result.fill(Qt.GlobalColor.transparent)
+                        mp = QPainter(result)
+                        mp.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                        mp.setClipPath(local_path)
+                        mp.drawImage(0, 0, content)
+                        mp.end()
+                        self._selection_content = result
+                        self._has_selection = True
+                        self._selection_from_canvas = True
+                        self._move_origin_rect = QRect(self._selection_rect)
+                    else:
+                        self.reset_selection()
                 else:
                     self.reset_selection()
             self._freeform_path.clear()
@@ -409,16 +428,7 @@ class SelectionTool(BaseTool):
                 and self._move_origin_rect is not None
                 and self._move_origin_rect != self._selection_rect
             ):
-                painter.save()
-                region = QRegion(self._move_origin_rect)
-                region = region.subtracted(QRegion(self._selection_rect))
-                if not region.isEmpty():
-                    painter.setClipRegion(region)
-                    painter.fillRect(
-                        QRectF(self._move_origin_rect), Qt.GlobalColor.white
-                    )
-                    painter.setClipping(False)
-                painter.restore()
+                painter.fillRect(QRectF(self._move_origin_rect), Qt.GlobalColor.white)
 
             # Draw floating content
             if self._selection_content:
