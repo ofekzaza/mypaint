@@ -158,7 +158,8 @@ class SelectionTool(BaseTool):
         ):
             painter.fillRect(self._move_origin_rect, Qt.GlobalColor.white)
 
-        painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
+        if not self._transparent_select:
+            painter.fillRect(self._selection_rect, Qt.GlobalColor.transparent)
 
         if self._rotation_angle != 0:
             transform = QTransform()
@@ -170,6 +171,10 @@ class SelectionTool(BaseTool):
 
         content = self._get_rendered_content()
         if content:
+            if self._transparent_select:
+                painter.setCompositionMode(
+                    QPainter.CompositionMode.CompositionMode_SourceOver
+                )
             painter.drawImage(self._selection_rect.topLeft(), content)
         painter.end()
 
