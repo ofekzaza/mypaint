@@ -208,15 +208,17 @@ class RoundedRectTool(ShapeTool):
 
 
 class CurveTool(BaseTool):
-    STATE_LINE = 0
-    STATE_BEND1 = 1
-    STATE_BEND2 = 2
+    STATE_LINE = 0   # drawing initial straight line
+    STATE_BEND1 = 1  # waiting for first bend click
+    STATE_BEND2 = 2  # waiting for second bend click (finalizes)
 
     def __init__(self, canvas_widget):
         super().__init__(canvas_widget)
         self._size = 1
+        self._stroke_style = STROKE_SOLID
         self._state = self.STATE_LINE
-        self._points: list[QPointF] = []
+        self._start_point: QPointF | None = None
+        self._end_point: QPointF | None = None
         self._curve_point1: QPointF | None = None
         self._curve_point2: QPointF | None = None
         self._drawing = False
@@ -230,14 +232,26 @@ class CurveTool(BaseTool):
     def set_size(self, size: int) -> None:
         self._size = max(1, size)
 
+    def set_stroke_style(self, style: Qt.PenStyle) -> None:
+        self._stroke_style = style
+
     def _make_pen(self) -> QPen:
         return QPen(
             QColor(self.canvas.color1),
             self._size,
-            Qt.PenStyle.SolidLine,
+            self._stroke_style,
             Qt.PenCapStyle.RoundCap,
             Qt.PenJoinStyle.RoundJoin,
         )
+
+    def _reset(self) -> None:
+        self._state = self.STATE_LINE
+        self._drawing = False
+        self._start_point = None
+        self._end_point = None
+        self._curve_point1 = None
+        self._curve_point2 = None
+        self.canvas.update_preview()
 
     def mouse_press_event(self, event: QMouseEvent) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
@@ -245,9 +259,9 @@ class CurveTool(BaseTool):
         pos = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
 
         if self._state == self.STATE_LINE:
-            self._points = [pos]
+            self._start_point = pos
+            self._end_point = pos
             self._drawing = True
-            self._state = self.STATE_BEND1
         elif self._state == self.STATE_BEND1:
             self._curve_point1 = pos
             self._state = self.STATE_BEND2
@@ -255,16 +269,14 @@ class CurveTool(BaseTool):
         elif self._state == self.STATE_BEND2:
             self._curve_point2 = pos
             self._finalize_curve()
-            self._state = self.STATE_LINE
-            self._drawing = False
-            self.canvas.commit_drawing()
+            self._reset()
 
     def mouse_move_event(self, event: QMouseEvent) -> None:
         super().mouse_move_event(event)
         pos = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
 
-        if self._state == self.STATE_LINE and self._drawing and len(self._points) >= 1:
-            self._points = [self._points[0], pos]
+        if self._state == self.STATE_LINE and self._drawing:
+            self._end_point = pos
             self.canvas.update_preview()
         elif self._state == self.STATE_BEND1:
             self._curve_point1 = pos
@@ -273,11 +285,17 @@ class CurveTool(BaseTool):
             self._curve_point2 = pos
             self.canvas.update_preview()
 
+    def mouse_release_event(self, event: QMouseEvent) -> None:
+        if self._state == self.STATE_LINE and self._drawing:
+            self._drawing = False
+            self._state = self.STATE_BEND1
+            self.canvas.update_preview()
+
     def _finalize_curve(self) -> None:
-        if len(self._points) < 2 or self._curve_point1 is None:
+        if self._start_point is None or self._end_point is None or self._curve_point1 is None:
             return
-        p0 = self._points[0]
-        p3 = self._points[-1] if len(self._points) > 1 else p0
+        p0 = self._start_point
+        p3 = self._end_point
         p1 = self._curve_point1
         p2 = self._curve_point2 or p1
 
@@ -290,48 +308,42 @@ class CurveTool(BaseTool):
         painter.setPen(self._make_pen())
         painter.drawPath(path)
         painter.end()
-        self.canvas.update_preview()
-
-    def mouse_release_event(self, event: QMouseEvent) -> None:
-        pass
+        self.canvas.commit_drawing()
 
     def key_press_event(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Escape:
-            self._state = self.STATE_LINE
-            self._drawing = False
-            self._points.clear()
-            self._curve_point1 = None
-            self._curve_point2 = None
-            self.canvas.update_preview()
+            self._reset()
 
     def paint_overlay(self, painter: QPainter) -> None:
-        if not self._drawing or not self._points:
-            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        pen = QPen(QColor(100, 100, 255), 1, Qt.PenStyle.DashLine)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
 
-        if self._state == self.STATE_LINE and len(self._points) == 2:
-            painter.drawLine(self._points[0], self._points[1])
+        if self._state == self.STATE_LINE and self._drawing and self._start_point and self._end_point:
+            if self._start_point != self._end_point:
+                painter.setPen(QPen(QColor(100, 100, 255), 1, Qt.PenStyle.DashLine))
+                painter.drawLine(QPointF(self._start_point), QPointF(self._end_point))
+            return
 
-        if self._state == self.STATE_BEND1 and self._curve_point1:
-            p0 = self._points[0]
-            p3 = self._points[1] if len(self._points) > 1 else p0
-            painter.drawLine(p0, self._curve_point1)
-            painter.drawLine(p3, self._curve_point1)
-            painter.drawEllipse(self._curve_point1, 3, 3)
+        if self._state == self.STATE_BEND1 and self._start_point and self._end_point:
+            cp = self._curve_point1 or self._end_point
+            pen = QPen(QColor(100, 100, 255), 1, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawLine(self._start_point, cp)
+            painter.drawLine(self._end_point, cp)
+            painter.drawEllipse(cp, 3, 3)
+            return
 
-        if self._state == self.STATE_BEND2 and self._curve_point1 and self._curve_point2:
-            p0 = self._points[0]
-            p3 = self._points[1] if len(self._points) > 1 else p0
+        if self._state == self.STATE_BEND2 and self._start_point and self._end_point:
+            cp1 = self._curve_point1 or self._end_point
+            cp2 = self._curve_point2 or cp1
             path = QPainterPath()
-            path.moveTo(p0)
-            path.cubicTo(self._curve_point1, self._curve_point2, p3)
+            path.moveTo(self._start_point)
+            path.cubicTo(cp1, cp2, self._end_point)
             painter.setPen(QPen(QColor(100, 100, 255), 2, Qt.PenStyle.SolidLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawPath(path)
-            painter.drawEllipse(self._curve_point1, 3, 3)
-            painter.drawEllipse(self._curve_point2, 3, 3)
+            painter.drawEllipse(cp1, 3, 3)
+            painter.drawEllipse(cp2, 3, 3)
 
 
 class PolygonTool(BaseTool):

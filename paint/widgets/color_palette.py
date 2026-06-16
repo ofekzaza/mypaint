@@ -30,9 +30,6 @@ DEFAULT_COLORS = [
     QColor(64, 128, 64),
     QColor(64, 64, 128),
     QColor(192, 128, 64),
-    QColor(192, 192, 192),
-    QColor(255, 255, 255),
-    QColor(0, 0, 0),
 ]
 
 SWATCH_SIZE = 20
@@ -83,7 +80,7 @@ class ColorPalette(QFrame):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        indicators = QHBoxLayout()
+        indicators = QVBoxLayout()
         indicators.setSpacing(2)
 
         self._color1_preview = ColorSwatch(self._color1)
@@ -96,16 +93,22 @@ class ColorPalette(QFrame):
 
         layout.addLayout(indicators)
 
-        swatch_layout = QHBoxLayout()
-        swatch_layout.setSpacing(SWATCH_MARGIN)
-        swatch_layout.setContentsMargins(0, 0, 0, 0)
+        swatch_vbox = QVBoxLayout()
+        swatch_vbox.setSpacing(SWATCH_MARGIN)
+        swatch_vbox.setContentsMargins(0, 0, 0, 0)
 
-        for color in DEFAULT_COLORS:
-            swatch = ColorSwatch(color)
-            swatch.clicked.connect(self._on_swatch_clicked)
-            swatch_layout.addWidget(swatch)
+        n_cols = 9
+        for row_start in range(0, len(DEFAULT_COLORS), n_cols):
+            row_layout = QHBoxLayout()
+            row_layout.setSpacing(SWATCH_MARGIN)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            for color in DEFAULT_COLORS[row_start : row_start + n_cols]:
+                swatch = ColorSwatch(color)
+                swatch.clicked.connect(self._on_swatch_clicked)
+                row_layout.addWidget(swatch)
+            swatch_vbox.addLayout(row_layout)
 
-        layout.addLayout(swatch_layout)
+        layout.addLayout(swatch_vbox)
 
         self._edit_colors_btn = QToolButton()
         self._edit_colors_btn.setText("Edit\nColors")

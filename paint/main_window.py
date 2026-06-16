@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -208,6 +209,7 @@ class MainWindow(QMainWindow):
 
         shape_tools = {"line", "curve", "rectangle", "ellipse", "rounded_rect", "polygon"}
         size_tools = {"pencil", "brush", "eraser", "line"} | shape_tools
+        select_tools = {"select_rect", "select_freeform"}
 
         self._size_selector.setVisible(tool_name in size_tools)
 
@@ -215,6 +217,18 @@ class MainWindow(QMainWindow):
         self._fill_mode_combo.setVisible(show_fill)
         self._stroke_style_combo.setVisible(show_fill)
         self._fill_mode_label.setVisible(show_fill)
+
+        self._transparent_select_check.setVisible(tool_name in select_tools)
+
+        # Propagate current UI settings to the newly selected tool
+        tool = self.canvas._active_tool
+        if tool:
+            if hasattr(tool, "set_size"):
+                tool.set_size(self._size_selector.current_size())
+            if hasattr(tool, "set_fill_mode"):
+                tool.set_fill_mode(self._active_shape_fill)
+            if hasattr(tool, "set_stroke_style"):
+                tool.set_stroke_style(self._active_stroke_style)
 
         if tool_name == "text":
             if self._text_tool and self._text_tool.is_editing():
@@ -396,66 +410,65 @@ class MainWindow(QMainWindow):
         # Inline text toolbar — shown only when editing text
         self._text_inline_frame = QFrame()
         self._text_inline_frame.setVisible(False)
-        text_layout = QHBoxLayout(self._text_inline_frame)
-        text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(4)
+        text_grid = QGridLayout(self._text_inline_frame)
+        text_grid.setContentsMargins(0, 0, 0, 0)
+        text_grid.setSpacing(4)
 
         self._text_font_combo = QComboBox()
         self._text_font_combo.addItems(QFontDatabase().families())
         self._text_font_combo.setCurrentText("Sans")
         self._text_font_combo.setMinimumWidth(120)
         self._text_font_combo.currentTextChanged.connect(self._on_text_font_changed)
-        text_layout.addWidget(self._text_font_combo)
+        text_grid.addWidget(self._text_font_combo, 0, 0, 1, 4)
 
+        size_label = QLabel("Size:")
+        text_grid.addWidget(size_label, 1, 0)
         self._text_size_spin = QSpinBox()
         self._text_size_spin.setRange(1, 200)
         self._text_size_spin.setValue(12)
         self._text_size_spin.valueChanged.connect(self._on_text_font_changed)
-        text_layout.addWidget(self._text_size_spin)
+        text_grid.addWidget(self._text_size_spin, 1, 1)
 
         self._text_bold_btn = QToolButton()
         self._text_bold_btn.setText("B")
         self._text_bold_btn.setCheckable(True)
         self._text_bold_btn.setToolTip("Bold")
         self._text_bold_btn.toggled.connect(self._text_tool.set_bold)
-        text_layout.addWidget(self._text_bold_btn)
+        text_grid.addWidget(self._text_bold_btn, 2, 0)
 
         self._text_italic_btn = QToolButton()
         self._text_italic_btn.setText("I")
         self._text_italic_btn.setCheckable(True)
         self._text_italic_btn.setToolTip("Italic")
         self._text_italic_btn.toggled.connect(self._text_tool.set_italic)
-        text_layout.addWidget(self._text_italic_btn)
+        text_grid.addWidget(self._text_italic_btn, 2, 1)
 
         self._text_underline_btn = QToolButton()
         self._text_underline_btn.setText("U")
         self._text_underline_btn.setCheckable(True)
         self._text_underline_btn.setToolTip("Underline")
         self._text_underline_btn.toggled.connect(self._text_tool.set_underline)
-        text_layout.addWidget(self._text_underline_btn)
+        text_grid.addWidget(self._text_underline_btn, 2, 2)
 
         self._text_strikeout_btn = QToolButton()
         self._text_strikeout_btn.setText("S")
         self._text_strikeout_btn.setCheckable(True)
         self._text_strikeout_btn.setToolTip("Strikeout")
         self._text_strikeout_btn.toggled.connect(self._text_tool.set_strikeout)
-        text_layout.addWidget(self._text_strikeout_btn)
-
-        self._text_color_btn = QToolButton()
-        self._text_color_btn.setText("A")
-        self._text_color_btn.setToolTip("Text Color")
-        self._text_color_btn.setStyleSheet(
-            "background-color: black; min-width: 20px; min-height: 20px;"
-        )
-        self._text_color_btn.clicked.connect(self._on_text_color_pick)
-        text_layout.addWidget(self._text_color_btn)
+        text_grid.addWidget(self._text_strikeout_btn, 2, 3)
 
         self._text_bg_check = QCheckBox("Transparent")
         self._text_bg_check.setChecked(True)
         self._text_bg_check.toggled.connect(self._on_text_bg_mode)
-        text_layout.addWidget(self._text_bg_check)
+        text_grid.addWidget(self._text_bg_check, 3, 0, 1, 4)
 
         layout.addWidget(self._text_inline_frame)
+
+        # Transparent selection checkbox — shown only when a selection tool is active
+        self._transparent_select_check = QCheckBox("Transparent selection")
+        self._transparent_select_check.setVisible(False)
+        self._transparent_select_check.toggled.connect(self._on_transparent_select_toggled)
+        layout.addWidget(self._transparent_select_check)
 
         layout.addStretch()
 
@@ -493,16 +506,9 @@ class MainWindow(QMainWindow):
         if self._text_tool:
             self._text_tool.set_font(font)
 
-    def _on_text_color_pick(self) -> None:
-        from PySide6.QtWidgets import QColorDialog
-
-        color = QColorDialog.getColor(QColor(0, 0, 0), self, "Text Color")
-        if color.isValid():
-            self._text_color_btn.setStyleSheet(
-                f"background-color: {color.name()}; min-width: 20px; min-height: 20px;"
-            )
-            if self._text_tool:
-                self._text_tool.set_text_color(color)
+    def _on_transparent_select_toggled(self, checked: bool) -> None:
+        self._select_rect_tool.set_transparent(checked)
+        self._select_free_tool.set_transparent(checked)
 
     def _on_text_bg_mode(self, checked: bool) -> None:
         if self._text_tool:

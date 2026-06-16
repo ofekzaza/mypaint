@@ -111,7 +111,7 @@ class TextTool(BaseTool):
 
         font = self._make_font()
         painter.setFont(font)
-        painter.setPen(QPen(self._text_color))
+        painter.setPen(QPen(self.canvas.color1))
 
         doc = QTextDocument(self._text)
         doc.setDefaultFont(font)
@@ -368,7 +368,7 @@ class TextTool(BaseTool):
 
         font = self._make_font()
         painter.setFont(font)
-        painter.setPen(QPen(self._text_color))
+        painter.setPen(QPen(self.canvas.color1))
 
         doc = QTextDocument(self._text)
         doc.setDefaultFont(font)
@@ -383,7 +383,7 @@ class TextTool(BaseTool):
 
         caret = self._caret_rect()
         if self._cursor_pos <= len(self._text):
-            painter.setPen(QPen(self._text_color))
+            painter.setPen(QPen(self.canvas.color1))
             painter.drawLine(
                 QPointF(caret.x(), caret.y()),
                 QPointF(caret.x(), caret.y() + caret.height()),

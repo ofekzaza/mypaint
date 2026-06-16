@@ -304,6 +304,14 @@ class SelectionTool(BaseTool):
         painter = QPainter(self.canvas.image())
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
 
+        # Fill origin first, so overlap gets white, then clear+drawn content overwrites it
+        if (
+            self._selection_from_canvas
+            and self._move_origin_rect is not None
+            and self._move_origin_rect != self._selection_rect
+        ):
+            painter.fillRect(self._move_origin_rect, QColor(self.canvas.color2))
+
         if self._transparent_select:
             self._selection_content.createMaskFromColor(
                 self._transparent_color, Qt.MaskMode.MaskOutColor
@@ -323,14 +331,6 @@ class SelectionTool(BaseTool):
             painter.setTransform(transform)
 
         painter.drawImage(self._selection_rect.topLeft(), self._selection_content)
-
-        if (
-            self._selection_from_canvas
-            and self._move_origin_rect is not None
-            and self._move_origin_rect != self._selection_rect
-        ):
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
-            painter.fillRect(self._move_origin_rect, QColor(self.canvas.color2))
 
         painter.end()
         self.canvas.commit_drawing()
