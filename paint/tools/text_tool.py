@@ -246,7 +246,7 @@ class TextTool(BaseTool):
             cursor_x, _ = line.cursorToX(pos_in_block)
             line_rect = line.rect()
             return QRectF(
-                self._rect.x() + cursor_x,
+                self._rect.x() + cursor_x + 1,
                 self._rect.y() + block_rect.y() + line_rect.y(),
                 1,
                 line_rect.height(),
@@ -384,6 +384,7 @@ class TextTool(BaseTool):
         if not self._editing:
             if event.key() == Qt.Key.Key_Escape:
                 self._cancel()
+                event.accept()
             return
 
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
@@ -419,6 +420,7 @@ class TextTool(BaseTool):
         else:
             return
 
+        event.accept()
         self.canvas.update_preview()
 
     def paint_overlay(self, painter: QPainter) -> None:

@@ -416,6 +416,8 @@ class CanvasWidget(QGraphicsView):
         self.viewport().update()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.setFocus(Qt.FocusReason.MouseFocusReason)
+
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = True
             self._pan_start = event.position().toPoint()
@@ -530,7 +532,8 @@ class CanvasWidget(QGraphicsView):
         if self._active_tool:
             self._active_tool.key_press_event(event)
             self.update_selection_overlay()
-        super().keyPressEvent(event)
+        if not event.isAccepted():
+            super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
         if self._active_tool:

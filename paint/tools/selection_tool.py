@@ -472,28 +472,18 @@ class SelectionTool(BaseTool):
     def key_press_event(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Delete or event.key() == Qt.Key.Key_Backspace:
             self.delete_selection()
+            event.accept()
         elif event.key() == Qt.Key.Key_Escape:
             self.reset_selection()
-        elif event.key() == Qt.Key.Key_Left and self._has_selection:
+            event.accept()
+        elif event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down) and self._has_selection:
             if self._selection_from_canvas and self._move_origin_rect is None:
                 self._move_origin_rect = QRect(self._selection_rect)
-            self._selection_rect.translate(-1, 0)
+            dx = (1 if event.key() == Qt.Key.Key_Right else -1) if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right) else 0
+            dy = (1 if event.key() == Qt.Key.Key_Down else -1) if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down) else 0
+            self._selection_rect.translate(dx, dy)
             self.canvas.update_preview()
-        elif event.key() == Qt.Key.Key_Right and self._has_selection:
-            if self._selection_from_canvas and self._move_origin_rect is None:
-                self._move_origin_rect = QRect(self._selection_rect)
-            self._selection_rect.translate(1, 0)
-            self.canvas.update_preview()
-        elif event.key() == Qt.Key.Key_Up and self._has_selection:
-            if self._selection_from_canvas and self._move_origin_rect is None:
-                self._move_origin_rect = QRect(self._selection_rect)
-            self._selection_rect.translate(0, -1)
-            self.canvas.update_preview()
-        elif event.key() == Qt.Key.Key_Down and self._has_selection:
-            if self._selection_from_canvas and self._move_origin_rect is None:
-                self._move_origin_rect = QRect(self._selection_rect)
-            self._selection_rect.translate(0, 1)
-            self.canvas.update_preview()
+            event.accept()
 
     def deactivate(self) -> None:
         if self._has_selection:
