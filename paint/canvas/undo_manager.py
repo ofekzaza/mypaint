@@ -2,7 +2,7 @@ from PySide6.QtGui import QImage
 
 
 class UndoManager:
-    def __init__(self, max_states: int = 100):
+    def __init__(self, max_states: int = 10000):
         self._undo_stack: list[QImage] = []
         self._redo_stack: list[QImage] = []
         self._max_states = max_states

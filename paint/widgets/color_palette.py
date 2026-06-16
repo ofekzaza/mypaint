@@ -1,6 +1,6 @@
 from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QColorDialog, QFrame, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QColorDialog, QFrame, QHBoxLayout, QToolButton, QVBoxLayout, QWidget
 
 DEFAULT_COLORS = [
     QColor(0, 0, 0),
@@ -79,7 +79,7 @@ class ColorPalette(QFrame):
         self.setup_ui()
 
     def setup_ui(self) -> None:
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
@@ -88,15 +88,12 @@ class ColorPalette(QFrame):
 
         self._color1_preview = ColorSwatch(self._color1)
         self._color1_preview.setFixedSize(28, 28)
-        self._color1_preview.clicked.connect(self._on_color1_edit)
         indicators.addWidget(self._color1_preview)
 
         self._color2_preview = ColorSwatch(self._color2)
         self._color2_preview.setFixedSize(28, 28)
-        self._color2_preview.clicked.connect(self._on_color2_edit)
         indicators.addWidget(self._color2_preview)
 
-        indicators.addStretch()
         layout.addLayout(indicators)
 
         swatch_layout = QHBoxLayout()
@@ -108,8 +105,13 @@ class ColorPalette(QFrame):
             swatch.clicked.connect(self._on_swatch_clicked)
             swatch_layout.addWidget(swatch)
 
-        swatch_layout.addStretch()
         layout.addLayout(swatch_layout)
+
+        self._edit_colors_btn = QToolButton()
+        self._edit_colors_btn.setText("Edit\nColors")
+        self._edit_colors_btn.setToolTip("Choose any color from the color grid")
+        self._edit_colors_btn.clicked.connect(self._on_edit_colors)
+        layout.addWidget(self._edit_colors_btn)
 
     @property
     def color1(self) -> QColor:
@@ -143,12 +145,7 @@ class ColorPalette(QFrame):
         elif button == Qt.MouseButton.RightButton:
             self.color2 = color
 
-    def _on_color1_edit(self, color: QColor, button: Qt.MouseButton) -> None:
+    def _on_edit_colors(self) -> None:
         dialog = QColorDialog(self._color1, self)
         if dialog.exec():
             self.color1 = dialog.currentColor()
-
-    def _on_color2_edit(self, color: QColor, button: Qt.MouseButton) -> None:
-        dialog = QColorDialog(self._color2, self)
-        if dialog.exec():
-            self.color2 = dialog.currentColor()

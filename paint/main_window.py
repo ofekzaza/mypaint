@@ -1,6 +1,7 @@
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction, QColor, QKeySequence, QTransform
+from PySide6.QtGui import QAction, QColor, QFont, QFontDatabase, QKeySequence, QTransform
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -10,7 +11,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -18,7 +21,6 @@ from PySide6.QtWidgets import (
 from paint.canvas.canvas_widget import CanvasWidget
 from paint.dialogs.properties_dialog import PropertiesDialog
 from paint.dialogs.resize_dialog import ResizeDialog
-from paint.dialogs.text_toolbar import TextToolbar
 from paint.services.clipboard_service import ClipboardService
 from paint.services.file_service import FileService
 from paint.tools.brush_tool import BrushTool
@@ -64,7 +66,8 @@ class MainWindow(QMainWindow):
         self._show_thumbnail = False
         self._show_rulers = False
 
-        self._text_toolbar: TextToolbar | None = None
+
+
         self._thumbnail_window: ThumbnailWindow | None = None
         self._active_shape_fill = FILL_OUTLINE
         self._active_stroke_style = STROKE_SOLID
@@ -342,6 +345,24 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(8)
 
+        # Undo / Redo buttons
+        self._undo_btn = QToolButton()
+        self._undo_btn.setText("\u21a9")
+        self._undo_btn.setToolTip("Undo (Ctrl+Z)")
+        self._undo_btn.clicked.connect(self._edit_undo)
+        layout.addWidget(self._undo_btn)
+
+        self._redo_btn = QToolButton()
+        self._redo_btn.setText("\u21aa")
+        self._redo_btn.setToolTip("Redo (Ctrl+Y)")
+        self._redo_btn.clicked.connect(self._edit_redo)
+        layout.addWidget(self._redo_btn)
+
+        sep_ur = QFrame()
+        sep_ur.setFrameShape(QFrame.Shape.VLine)
+        sep_ur.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep_ur)
+
         layout.addWidget(self._tool_palette)
 
         sep1 = QFrame()
@@ -372,6 +393,70 @@ class MainWindow(QMainWindow):
         self._stroke_style_combo.setVisible(False)
         layout.addWidget(fill_frame)
 
+        # Inline text toolbar — shown only when editing text
+        self._text_inline_frame = QFrame()
+        self._text_inline_frame.setVisible(False)
+        text_layout = QHBoxLayout(self._text_inline_frame)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(4)
+
+        self._text_font_combo = QComboBox()
+        self._text_font_combo.addItems(QFontDatabase().families())
+        self._text_font_combo.setCurrentText("Sans")
+        self._text_font_combo.setMinimumWidth(120)
+        self._text_font_combo.currentTextChanged.connect(self._on_text_font_changed)
+        text_layout.addWidget(self._text_font_combo)
+
+        self._text_size_spin = QSpinBox()
+        self._text_size_spin.setRange(1, 200)
+        self._text_size_spin.setValue(12)
+        self._text_size_spin.valueChanged.connect(self._on_text_font_changed)
+        text_layout.addWidget(self._text_size_spin)
+
+        self._text_bold_btn = QToolButton()
+        self._text_bold_btn.setText("B")
+        self._text_bold_btn.setCheckable(True)
+        self._text_bold_btn.setToolTip("Bold")
+        self._text_bold_btn.toggled.connect(self._text_tool.set_bold)
+        text_layout.addWidget(self._text_bold_btn)
+
+        self._text_italic_btn = QToolButton()
+        self._text_italic_btn.setText("I")
+        self._text_italic_btn.setCheckable(True)
+        self._text_italic_btn.setToolTip("Italic")
+        self._text_italic_btn.toggled.connect(self._text_tool.set_italic)
+        text_layout.addWidget(self._text_italic_btn)
+
+        self._text_underline_btn = QToolButton()
+        self._text_underline_btn.setText("U")
+        self._text_underline_btn.setCheckable(True)
+        self._text_underline_btn.setToolTip("Underline")
+        self._text_underline_btn.toggled.connect(self._text_tool.set_underline)
+        text_layout.addWidget(self._text_underline_btn)
+
+        self._text_strikeout_btn = QToolButton()
+        self._text_strikeout_btn.setText("S")
+        self._text_strikeout_btn.setCheckable(True)
+        self._text_strikeout_btn.setToolTip("Strikeout")
+        self._text_strikeout_btn.toggled.connect(self._text_tool.set_strikeout)
+        text_layout.addWidget(self._text_strikeout_btn)
+
+        self._text_color_btn = QToolButton()
+        self._text_color_btn.setText("A")
+        self._text_color_btn.setToolTip("Text Color")
+        self._text_color_btn.setStyleSheet(
+            "background-color: black; min-width: 20px; min-height: 20px;"
+        )
+        self._text_color_btn.clicked.connect(self._on_text_color_pick)
+        text_layout.addWidget(self._text_color_btn)
+
+        self._text_bg_check = QCheckBox("Transparent")
+        self._text_bg_check.setChecked(True)
+        self._text_bg_check.toggled.connect(self._on_text_bg_mode)
+        text_layout.addWidget(self._text_bg_check)
+
+        layout.addWidget(self._text_inline_frame)
+
         layout.addStretch()
 
         layout.addWidget(self._color_palette)
@@ -392,26 +477,36 @@ class MainWindow(QMainWindow):
         sb.addPermanentWidget(self._zoom_label)
 
     def _show_text_toolbar(self) -> None:
-        if self._text_toolbar is None:
-            self._text_toolbar = TextToolbar(self)
-            self._text_toolbar.font_changed.connect(self._text_tool.set_font)
-            self._text_toolbar.bold_changed.connect(self._text_tool.set_bold)
-            self._text_toolbar.italic_changed.connect(self._text_tool.set_italic)
-            self._text_toolbar.underline_changed.connect(self._text_tool.set_underline)
-            self._text_toolbar.strikeout_changed.connect(self._text_tool.set_strikeout)
-            self._text_toolbar.color_changed.connect(self._text_tool.set_text_color)
-            self._text_toolbar.background_mode_changed.connect(self._text_tool.set_background_mode)
-        self._text_toolbar.show()
+        self._text_inline_frame.setVisible(True)
 
     def _hide_text_toolbar(self) -> None:
-        if self._text_toolbar:
-            self._text_toolbar.hide()
+        self._text_inline_frame.setVisible(False)
 
     def _on_text_editing_started(self) -> None:
         self._show_text_toolbar()
 
     def _on_text_editing_finished(self) -> None:
         self._hide_text_toolbar()
+
+    def _on_text_font_changed(self) -> None:
+        font = QFont(self._text_font_combo.currentText(), self._text_size_spin.value())
+        if self._text_tool:
+            self._text_tool.set_font(font)
+
+    def _on_text_color_pick(self) -> None:
+        from PySide6.QtWidgets import QColorDialog
+
+        color = QColorDialog.getColor(QColor(0, 0, 0), self, "Text Color")
+        if color.isValid():
+            self._text_color_btn.setStyleSheet(
+                f"background-color: {color.name()}; min-width: 20px; min-height: 20px;"
+            )
+            if self._text_tool:
+                self._text_tool.set_text_color(color)
+
+    def _on_text_bg_mode(self, checked: bool) -> None:
+        if self._text_tool:
+            self._text_tool.set_background_mode("transparent" if checked else "opaque")
 
     def _toggle_fullscreen(self) -> None:
         self._fullscreen = not self._fullscreen

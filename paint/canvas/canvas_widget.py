@@ -198,6 +198,14 @@ class CanvasWidget(QGraphicsView):
         self.update_image_item()
         self._dirty = True
 
+    def apply_image(self, image: QImage) -> None:
+        self._undo.push_state(self._buffer.image.copy())
+        self._buffer.image = image
+        self._resize_preview(image.width(), image.height())
+        self._update_resize_handles()
+        self.update_image_item()
+        self._dirty = True
+
     def _resize_preview(self, w: int, h: int) -> None:
         self._preview_pixmap = QPixmap(w, h)
         self._preview_pixmap.fill(Qt.GlobalColor.transparent)

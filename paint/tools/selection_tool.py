@@ -45,6 +45,9 @@ class SelectionTool(BaseTool):
         self._transparent_select = False
         self._transparent_color = QColor(255, 255, 255)
 
+        self._move_origin_rect: QRect | None = None
+        self._selection_from_canvas = False
+
     def name(self) -> str:
         return f"Selection ({self._mode})"
 
@@ -68,6 +71,7 @@ class SelectionTool(BaseTool):
         self._selection_rect = QRect(0, 0, img.width(), img.height())
         self._selection_content = img.copy(self._selection_rect)
         self._has_selection = True
+        self._selection_from_canvas = True
         self._rotation_angle = 0.0
         self.canvas.update_preview()
 
@@ -80,6 +84,7 @@ class SelectionTool(BaseTool):
         full_rect = QRect(0, 0, img.width(), img.height())
         self._selection_rect = full_rect
         self._selection_content = img.copy(self._selection_rect)
+        self._selection_from_canvas = True
         self.canvas.update_preview()
 
     def cut_selection(self) -> QImage | None:
@@ -108,6 +113,8 @@ class SelectionTool(BaseTool):
         self._selection_rect = QRect(x, y, w, h)
         self._has_selection = True
         self._rotation_angle = 0.0
+        self._selection_from_canvas = False
+        self._move_origin_rect = None
         self._moving = True
         self._drag_start = QPoint(x, y)
         self.canvas.update_preview()
@@ -201,7 +208,10 @@ class SelectionTool(BaseTool):
                     pos.x() - self._selection_rect.x(),
                     pos.y() - self._selection_rect.y(),
                 )
+                self._move_origin_rect = QRect(self._selection_rect)
                 return
+
+            self._commit_move()
 
         if event.button() == Qt.MouseButton.LeftButton:
             self._selecting = True
@@ -268,6 +278,8 @@ class SelectionTool(BaseTool):
                 if self._selection_rect.width() > 0 and self._selection_rect.height() > 0:
                     self._selection_content = self.canvas.image().copy(self._selection_rect)
                     self._has_selection = True
+                    self._selection_from_canvas = True
+                    self._move_origin_rect = QRect(self._selection_rect)
                 else:
                     self.reset_selection()
             self._freeform_path.clear()
@@ -311,9 +323,19 @@ class SelectionTool(BaseTool):
             painter.setTransform(transform)
 
         painter.drawImage(self._selection_rect.topLeft(), self._selection_content)
+
+        if (
+            self._selection_from_canvas
+            and self._move_origin_rect is not None
+            and self._move_origin_rect != self._selection_rect
+        ):
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+            painter.fillRect(self._move_origin_rect, QColor(self.canvas.color2))
+
         painter.end()
         self.canvas.commit_drawing()
         self.canvas.update_preview()
+        self.reset_selection()
 
     def paint_overlay(self, painter: QPainter) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
