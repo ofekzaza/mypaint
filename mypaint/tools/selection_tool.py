@@ -136,7 +136,7 @@ class SelectionTool(BaseTool):
         result = self._selection_content.convertToFormat(
             QImage.Format.Format_ARGB32_Premultiplied
         )
-        key = QColor(self.canvas.color2)
+        key = QColor(Qt.GlobalColor.white)
         mask = result.createMaskFromColor(key.rgb(), Qt.MaskMode.MaskOutColor)
         result.setAlphaChannel(mask)
         return result
