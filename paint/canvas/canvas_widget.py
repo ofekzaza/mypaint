@@ -78,6 +78,15 @@ class CanvasWidget(QGraphicsView):
         self._active_tool = None
         self._tools: dict[str, object] = {}
 
+        # Resize handles (canvas edge nubs)
+        self._resize_handle_size = 8.0
+        self._resize_hover: str | None = None
+        self._resize_dragging = False
+        self._resize_drag_handle: str | None = None
+        self._resize_drag_start_scene = QPointF()
+        self._resize_preview_rect: QRect | None = None
+        self._update_resize_handles()
+
         self.setup_view()
 
         self._undo.push_state(self._buffer.image)
@@ -105,6 +114,44 @@ class CanvasWidget(QGraphicsView):
     def update_background(self) -> None:
         color = self._theme.workspace_color()
         self.setBackgroundBrush(QBrush(color))
+
+    def _update_resize_handles(self) -> None:
+        w = float(self._buffer.width())
+        h = float(self._buffer.height())
+        half = self._resize_handle_size / 2.0
+        self._resize_handles: list[tuple[str, QRectF]] = []
+        edges: list[tuple[str, float, float]] = [
+            ("top", w / 2.0, 0.0),
+            ("bottom", w / 2.0, h),
+            ("left", 0.0, h / 2.0),
+            ("right", w, h / 2.0),
+        ]
+        for name, cx, cy in edges:
+            r = QRectF(cx - half, cy - half, self._resize_handle_size, self._resize_handle_size)
+            self._resize_handles.append((name, r))
+
+    def _resize_handle_at(self, scene_pos: QPointF) -> str | None:
+        for name, rect in self._resize_handles:
+            if rect.contains(scene_pos):
+                return name
+        return None
+
+    def _do_resize_to(self, new_rect: QRect) -> None:
+        old_rect = QRect(0, 0, self._buffer.width(), self._buffer.height())
+        if new_rect == old_rect:
+            return
+        if new_rect.isEmpty():
+            return
+        self._undo.push_state(self._buffer.image.copy())
+        union = old_rect.united(new_rect)
+        if union != old_rect:
+            self._buffer.expand_to_rect(union, QColor(Qt.GlobalColor.white))
+        if new_rect != union:
+            self._buffer.crop(new_rect)
+        self._resize_preview(new_rect.width(), new_rect.height())
+        self._update_resize_handles()
+        self.update_image_item()
+        self._dirty = True
 
     def register_tool(self, name: str, tool) -> None:
         self._tools[name] = tool
@@ -147,6 +194,7 @@ class CanvasWidget(QGraphicsView):
     def set_image_direct(self, image: QImage) -> None:
         self._buffer.image = image
         self._resize_preview(image.width(), image.height())
+        self._update_resize_handles()
         self.update_image_item()
         self._dirty = True
 
@@ -177,6 +225,8 @@ class CanvasWidget(QGraphicsView):
         if self._preview_pixmap.isNull():
             return
 
+        self._undo.push_state(img.copy())
+
         painter = QPainter(img)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         painter.drawPixmap(0, 0, self._preview_pixmap)
@@ -184,8 +234,6 @@ class CanvasWidget(QGraphicsView):
 
         self._resize_preview(img.width(), img.height())
         self.update_image_item()
-
-        self._undo.push_state(img.copy())
         self._dirty = True
 
     def clear_selection_overlay(self) -> None:
@@ -209,17 +257,19 @@ class CanvasWidget(QGraphicsView):
     def resize_image(
         self, new_width: int, new_height: int, expand_color: QColor = Qt.GlobalColor.white
     ) -> None:
+        self._undo.push_state(self._buffer.image.copy())
         self._buffer.resize(new_width, new_height, expand_color)
         self._resize_preview(new_width, new_height)
+        self._update_resize_handles()
         self.update_image_item()
-        self._undo.push_state(self._buffer.image.copy())
         self._dirty = True
 
     def crop_image(self, rect: QRect) -> None:
+        self._undo.push_state(self._buffer.image.copy())
         self._buffer.crop(rect)
         self._resize_preview(rect.width(), rect.height())
+        self._update_resize_handles()
         self.update_image_item()
-        self._undo.push_state(self._buffer.image.copy())
         self._dirty = True
 
     def set_zoom(self, zoom_level: int) -> None:
@@ -269,6 +319,7 @@ class CanvasWidget(QGraphicsView):
         self._file_path = None
         self._dirty = False
         self._resize_preview(width, height)
+        self._update_resize_handles()
         self.clear_selection_overlay()
         self.update_image_item()
         self._undo.push_state(self._buffer.image.copy())
@@ -279,6 +330,7 @@ class CanvasWidget(QGraphicsView):
         self._file_path = file_path
         self._dirty = False
         self._resize_preview(image.width(), image.height())
+        self._update_resize_handles()
         self.clear_selection_overlay()
         self.update_image_item()
         self._undo.push_state(self._buffer.image.copy())
@@ -298,6 +350,7 @@ class CanvasWidget(QGraphicsView):
         if image:
             self._buffer.image = image
             self._resize_preview(image.width(), image.height())
+            self._update_resize_handles()
             self.update_image_item()
             self._dirty = self._undo.is_dirty()
 
@@ -306,6 +359,7 @@ class CanvasWidget(QGraphicsView):
         if image:
             self._buffer.image = image
             self._resize_preview(image.width(), image.height())
+            self._update_resize_handles()
             self.update_image_item()
             self._dirty = self._undo.is_dirty()
 
@@ -326,11 +380,50 @@ class CanvasWidget(QGraphicsView):
         else:
             super().wheelEvent(event)
 
+    def _update_resize_drag(self, scene_pos: QPointF) -> None:
+        if self._resize_preview_rect is None:
+            return
+        handle = self._resize_drag_handle
+        bw = self._buffer.width()
+        bh = self._buffer.height()
+        left, top, right, bottom = 0.0, 0.0, float(bw), float(bh)
+        sx, sy = scene_pos.x(), scene_pos.y()
+
+        if handle == "left":
+            left = min(sx, right - 1.0)
+        elif handle == "right":
+            right = max(sx, left + 1.0)
+        elif handle == "top":
+            top = min(sy, bottom - 1.0)
+        elif handle == "bottom":
+            bottom = max(sy, top + 1.0)
+
+        new_rect = QRectF(QPointF(left, top), QPointF(right, bottom)).normalized()
+        self._resize_preview_rect = QRect(
+            int(round(new_rect.x())),
+            int(round(new_rect.y())),
+            max(1, int(round(new_rect.width()))),
+            max(1, int(round(new_rect.height()))),
+        )
+        self.viewport().update()
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = True
             self._pan_start = event.position().toPoint()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+
+        scene_pos = self.mapToScene(event.position().toPoint())
+        handle = self._resize_handle_at(scene_pos)
+        if handle is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._resize_dragging = True
+            self._resize_drag_handle = handle
+            self._resize_drag_start_scene = scene_pos
+            self._resize_preview_rect = QRect(
+                0, 0, self._buffer.width(), self._buffer.height()
+            )
             event.accept()
             return
 
@@ -341,6 +434,13 @@ class CanvasWidget(QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        scene_pos = self.mapToScene(event.position().toPoint())
+
+        if self._resize_dragging:
+            self._update_resize_drag(scene_pos)
+            event.accept()
+            return
+
         if self._panning:
             delta = event.position().toPoint() - self._pan_start
             self._pan_start = event.position().toPoint()
@@ -350,6 +450,18 @@ class CanvasWidget(QGraphicsView):
             vsb.setValue(vsb.value() - delta.y())
             event.accept()
             return
+
+        handle = self._resize_handle_at(scene_pos)
+        if handle != self._resize_hover:
+            self._resize_hover = handle
+            if handle in ("left", "right"):
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
+            elif handle in ("top", "bottom"):
+                self.setCursor(Qt.CursorShape.SizeVerCursor)
+            elif self._active_tool:
+                self.setCursor(self._active_tool.cursor())
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)
 
         if self._active_tool:
             self._active_tool.mouse_move_event(event)
@@ -369,6 +481,20 @@ class CanvasWidget(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._resize_dragging:
+            if self._resize_preview_rect is not None:
+                self._do_resize_to(self._resize_preview_rect)
+            self._resize_dragging = False
+            self._resize_drag_handle = None
+            self._resize_drag_start_scene = QPointF()
+            self._resize_preview_rect = None
+            if self._active_tool:
+                self.setCursor(self._active_tool.cursor())
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+            return
+
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = False
             if self._active_tool:
@@ -404,21 +530,36 @@ class CanvasWidget(QGraphicsView):
         super().keyReleaseEvent(event)
 
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
-        if not self._show_pixel_grid:
-            return
-        painter.setPen(QPen(QColor(200, 200, 200, 80), 1))
-        factor = self._zoom_level / 100.0
-        if factor >= 4:
-            scene_rect = self.mapToScene(self.viewport().rect()).boundingRect()
-            left = max(0, int(scene_rect.left()))
-            top = max(0, int(scene_rect.top()))
-            right = min(self._buffer.width(), int(scene_rect.right()) + 1)
-            bottom = min(self._buffer.height(), int(scene_rect.bottom()) + 1)
+        # Resize preview outline
+        if self._resize_preview_rect is not None:
+            pen = QPen(QColor(0, 120, 215), 2.0, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(self._resize_preview_rect))
 
-            for x in range(left, right + 1):
-                painter.drawLine(QPointF(x, top), QPointF(x, bottom))
-            for y in range(top, bottom + 1):
-                painter.drawLine(QPointF(left, y), QPointF(right, y))
+        # Pixel grid
+        if self._show_pixel_grid:
+            painter.setPen(QPen(QColor(200, 200, 200, 80), 1))
+            factor = self._zoom_level / 100.0
+            if factor >= 4:
+                scene_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+                left = max(0, int(scene_rect.left()))
+                top = max(0, int(scene_rect.top()))
+                right = min(self._buffer.width(), int(scene_rect.right()) + 1)
+                bottom = min(self._buffer.height(), int(scene_rect.bottom()) + 1)
+
+                for x in range(left, right + 1):
+                    painter.drawLine(QPointF(x, top), QPointF(x, bottom))
+                for y in range(top, bottom + 1):
+                    painter.drawLine(QPointF(left, y), QPointF(right, y))
+
+        # Canvas resize handles
+        handle_color = QColor(0, 120, 215)
+        handle_outline = QColor(0, 80, 160)
+        for name, hr in self._resize_handles:
+            painter.setBrush(handle_color)
+            painter.setPen(QPen(handle_outline, 1.0))
+            painter.drawRect(hr)
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():

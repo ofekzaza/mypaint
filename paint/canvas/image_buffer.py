@@ -40,6 +40,20 @@ class ImageBuffer:
         painter.end()
         self._image = new_image
 
+    def expand_to_rect(
+        self, new_rect: QRect, expand_color: QColor = Qt.GlobalColor.white
+    ) -> None:
+        old_rect = self._image.rect()
+        if new_rect == old_rect:
+            return
+        new_image = QImage(new_rect.size(), QImage.Format.Format_ARGB32_Premultiplied)
+        new_image.fill(expand_color)
+        painter = QPainter(new_image)
+        offset = old_rect.topLeft() - new_rect.topLeft()
+        painter.drawImage(offset.x(), offset.y(), self._image)
+        painter.end()
+        self._image = new_image
+
     def copy(self) -> QImage:
         return self._image.copy()
 
