@@ -69,9 +69,6 @@ class ShapeTool(BaseTool):
         self._committal_end = QPointF(self._current_point)
         self._committal_params = {
             "pressed_button": self._pressed_button,
-            "fill_mode": self._fill_mode,
-            "stroke_style": self._stroke_style,
-            "size": self._size,
         }
 
     def _exit_committal(self) -> None:
@@ -94,16 +91,10 @@ class ShapeTool(BaseTool):
         old_start = self._start_point
         old_current = self._current_point
         old_button = self._pressed_button
-        old_fill = self._fill_mode
-        old_stroke = self._stroke_style
-        old_size = self._size
 
         self._start_point = QPoint(self._committal_start.toPoint())
         self._current_point = QPoint(self._committal_end.toPoint())
         self._pressed_button = self._committal_params["pressed_button"]
-        self._fill_mode = self._committal_params["fill_mode"]
-        self._stroke_style = self._committal_params["stroke_style"]
-        self._size = self._committal_params["size"]
 
         self._render_shape(final=True)
         self.canvas.commit_drawing()
@@ -111,9 +102,6 @@ class ShapeTool(BaseTool):
         self._start_point = old_start
         self._current_point = old_current
         self._pressed_button = old_button
-        self._fill_mode = old_fill
-        self._stroke_style = old_stroke
-        self._size = old_size
 
         self._exit_committal()
 
