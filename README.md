@@ -30,6 +30,10 @@ fyi i dont know if you accually can do any of this, i dont have power to go over
 uv run mypaint
 ```
 
+## comment
+
+to use the curve line feature, click and drag the mouse to draw a curve line. than release, after it move the mouse and than click to finish the curve line.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -1,14 +1,16 @@
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QCursor,
+    QImage,
     QKeyEvent,
     QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
     QPolygonF,
+    QRegion,
 )
 
 from .base_tool import BaseTool
@@ -20,6 +22,9 @@ FILL_BOTH = "both"
 STROKE_SOLID = Qt.PenStyle.SolidLine
 STROKE_DASHED = Qt.PenStyle.DashLine
 STROKE_DOTTED = Qt.PenStyle.DotLine
+
+HANDLE_SIZE = 8
+HANDLE_HALF = HANDLE_SIZE // 2
 
 
 class ShapeTool(BaseTool):
@@ -34,6 +39,14 @@ class ShapeTool(BaseTool):
         self._current_point: QPoint | None = None
         self._shift_pressed = False
         self._pressed_button = Qt.MouseButton.NoButton
+
+        self._committal = False
+        self._committal_start: QPointF | None = None
+        self._committal_end: QPointF | None = None
+        self._committal_params: dict = {}
+        self._resizing = False
+        self._resize_handle = -1
+        self._resize_start: QPointF | None = None
 
     def name(self) -> str:
         return self._shape_name.capitalize()
@@ -50,8 +63,154 @@ class ShapeTool(BaseTool):
     def set_stroke_style(self, style: Qt.PenStyle) -> None:
         self._stroke_style = style
 
+    def _enter_committal(self) -> None:
+        self._committal = True
+        self._committal_start = QPointF(self._start_point)
+        self._committal_end = QPointF(self._current_point)
+        self._committal_params = {
+            "pressed_button": self._pressed_button,
+            "fill_mode": self._fill_mode,
+            "stroke_style": self._stroke_style,
+            "size": self._size,
+        }
+
+    def _exit_committal(self) -> None:
+        self._committal = False
+        self._committal_start = None
+        self._committal_end = None
+        self._committal_params.clear()
+        self._resizing = False
+        self._resize_handle = -1
+        self._resize_start = None
+
+    def _get_committal_rect(self) -> QRectF:
+        if self._committal_start is None or self._committal_end is None:
+            return QRectF()
+        return QRectF(self._committal_start, self._committal_end).normalized()
+
+    def _commit_shape(self) -> None:
+        if not self._committal:
+            return
+        old_start = self._start_point
+        old_current = self._current_point
+        old_button = self._pressed_button
+        old_fill = self._fill_mode
+        old_stroke = self._stroke_style
+        old_size = self._size
+
+        self._start_point = QPoint(self._committal_start.toPoint())
+        self._current_point = QPoint(self._committal_end.toPoint())
+        self._pressed_button = self._committal_params["pressed_button"]
+        self._fill_mode = self._committal_params["fill_mode"]
+        self._stroke_style = self._committal_params["stroke_style"]
+        self._size = self._committal_params["size"]
+
+        self._render_shape(final=True)
+        self.canvas.commit_drawing()
+
+        self._start_point = old_start
+        self._current_point = old_current
+        self._pressed_button = old_button
+        self._fill_mode = old_fill
+        self._stroke_style = old_stroke
+        self._size = old_size
+
+        self._exit_committal()
+
+    def _cancel_shape(self) -> None:
+        if not self._committal:
+            return
+        painter = QPainter(self.canvas.preview_pixmap)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(self.canvas.preview_pixmap.rect(), Qt.GlobalColor.transparent)
+        painter.end()
+        self._exit_committal()
+        self._start_point = None
+        self._current_point = None
+        self.canvas.update_preview()
+
+    def _get_handle_at(self, pos: QPoint) -> int:
+        r = self._get_committal_rect().toRect()
+        if r.isNull() or r.isEmpty():
+            return -1
+        handles = [
+            (0, r.topLeft()),
+            (1, r.topRight()),
+            (2, r.bottomRight()),
+            (3, r.bottomLeft()),
+            (4, QPoint(r.center().x(), r.top())),
+            (5, QPoint(r.right(), r.center().y())),
+            (6, QPoint(r.center().x(), r.bottom())),
+            (7, QPoint(r.left(), r.center().y())),
+        ]
+        for idx, pt in handles:
+            hr = QRect(pt.x() - HANDLE_HALF, pt.y() - HANDLE_HALF, HANDLE_SIZE, HANDLE_SIZE)
+            if hr.contains(pos):
+                return idx
+        return -1
+
+    def _resize_rect_from_handle(self, handle: int, delta: QPointF) -> QRectF:
+        r = self._get_committal_rect()
+        p1 = r.topLeft()
+        p2 = r.bottomRight()
+        if handle == 0:
+            p1 += delta
+        elif handle == 1:
+            p1 += QPointF(0, delta.y())
+            p2 += QPointF(delta.x(), 0)
+        elif handle == 2:
+            p2 += delta
+        elif handle == 3:
+            p1 += QPointF(delta.x(), 0)
+            p2 += QPointF(0, delta.y())
+        elif handle == 4:
+            p1 += QPointF(0, delta.y())
+        elif handle == 5:
+            p2 += QPointF(delta.x(), 0)
+        elif handle == 6:
+            p2 += QPointF(0, delta.y())
+        elif handle == 7:
+            p1 += QPointF(delta.x(), 0)
+        return QRectF(p1, p2).normalized()
+
+    def _cursor_for_handle(self, handle: int) -> QCursor:
+        cursors = {
+            0: Qt.CursorShape.SizeFDiagCursor,
+            1: Qt.CursorShape.SizeBDiagCursor,
+            2: Qt.CursorShape.SizeFDiagCursor,
+            3: Qt.CursorShape.SizeBDiagCursor,
+            4: Qt.CursorShape.SizeVerCursor,
+            5: Qt.CursorShape.SizeHorCursor,
+            6: Qt.CursorShape.SizeVerCursor,
+            7: Qt.CursorShape.SizeHorCursor,
+        }
+        return QCursor(cursors.get(handle, Qt.CursorShape.ArrowCursor))
+
     def mouse_press_event(self, event: QMouseEvent) -> None:
         super().mouse_press_event(event)
+        pos = self.canvas.map_scene_to_image(event.position().toPoint())
+
+        if self._committal:
+            if event.button() == Qt.MouseButton.RightButton:
+                self._commit_shape()
+                return
+            if event.button() == Qt.MouseButton.LeftButton:
+                handle = self._get_handle_at(pos)
+                if handle >= 0:
+                    self._resizing = True
+                    self._resize_handle = handle
+                    self._resize_start = QPointF(pos)
+                    return
+                rect = self._get_committal_rect()
+                if not rect.contains(QPointF(pos)):
+                    self._commit_shape()
+                    self._drawing = True
+                    self._start_point = pos
+                    self._current_point = pos
+                    self._pressed_button = event.button()
+                return
+            return
+
         if event.button() not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
         self._pressed_button = event.button()
@@ -61,22 +220,54 @@ class ShapeTool(BaseTool):
 
     def mouse_move_event(self, event: QMouseEvent) -> None:
         super().mouse_move_event(event)
+        pos = self.canvas.map_scene_to_image(event.position().toPoint())
+
+        if self._resizing and self._resize_start:
+            delta = QPointF(pos) - self._resize_start
+            new_rect = self._resize_rect_from_handle(self._resize_handle, delta)
+            self._committal_start = new_rect.topLeft()
+            self._committal_end = new_rect.bottomRight()
+            self._resize_start = QPointF(pos)
+            self.canvas.update_preview()
+            return
+
+        if self._committal:
+            handle = self._get_handle_at(pos)
+            if handle >= 0:
+                self.canvas.setCursor(self._cursor_for_handle(handle))
+            else:
+                self.canvas.setCursor(self.cursor())
+            return
+
         if not self._drawing:
             return
-        self._current_point = self.canvas.map_scene_to_image(event.position().toPoint())
+        self._current_point = pos
         self.canvas.update_preview()
 
     def mouse_release_event(self, event: QMouseEvent) -> None:
+        if self._resizing:
+            self._resizing = False
+            self._resize_handle = -1
+            self._resize_start = None
+            super().mouse_release_event(event)
+            return
         if self._drawing:
             self._drawing = False
-            self._render_shape(final=True)
+            self._enter_committal()
             self._start_point = None
             self._current_point = None
-            self.canvas.commit_drawing()
+            self.canvas.update_preview()
+            return
         super().mouse_release_event(event)
 
     def key_press_event(self, event: QKeyEvent) -> None:
-        if event.key() == Qt.Key.Key_Shift:
+        if event.key() == Qt.Key.Key_Escape and self._committal:
+            self._cancel_shape()
+            event.accept()
+        elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._committal:
+            self._commit_shape()
+            event.accept()
+        elif event.key() == Qt.Key.Key_Shift:
             self._shift_pressed = True
             if self._drawing:
                 self.canvas.update_preview()
@@ -88,9 +279,51 @@ class ShapeTool(BaseTool):
                 self.canvas.update_preview()
 
     def paint_overlay(self, painter: QPainter) -> None:
-        if not self._drawing or self._start_point is None or self._current_point is None:
+        if self._drawing and self._start_point is not None and self._current_point is not None:
+            self._render_shape(final=False, painter=painter)
+        elif self._committal:
+            self._paint_committal_overlay(painter)
+
+    def _paint_committal_overlay(self, painter: QPainter) -> None:
+        if self._committal_start is None or self._committal_end is None:
             return
+        rect = self._get_committal_rect()
+        if rect.isNull() or rect.isEmpty():
+            return
+
+        old_start = self._start_point
+        old_current = self._current_point
+        self._start_point = QPoint(self._committal_start.toPoint())
+        self._current_point = QPoint(self._committal_end.toPoint())
         self._render_shape(final=False, painter=painter)
+        self._start_point = old_start
+        self._current_point = old_current
+
+        painter.setPen(QPen(QColor(0, 120, 255), 1, Qt.PenStyle.DashLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(rect)
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(0, 120, 255)))
+        rect_r = rect.toRect()
+        pts = [
+            rect_r.topLeft(),
+            rect_r.topRight(),
+            rect_r.bottomRight(),
+            rect_r.bottomLeft(),
+            QPoint(rect_r.center().x(), rect_r.top()),
+            QPoint(rect_r.right(), rect_r.center().y()),
+            QPoint(rect_r.center().x(), rect_r.bottom()),
+            QPoint(rect_r.left(), rect_r.center().y()),
+        ]
+        for pt in pts:
+            hr = QRectF(pt.x() - HANDLE_HALF, pt.y() - HANDLE_HALF, HANDLE_SIZE, HANDLE_SIZE)
+            painter.drawRect(hr)
+
+    def deactivate(self) -> None:
+        if self._committal:
+            self._commit_shape()
+        super().deactivate()
 
     def _get_rect(self) -> QRectF:
         if self._start_point is None or self._current_point is None:
