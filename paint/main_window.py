@@ -516,6 +516,7 @@ class MainWindow(QMainWindow):
         font = QFont(self._text_font_combo.currentText(), self._text_size_spin.value())
         if self._text_tool:
             self._text_tool.set_font(font)
+        self.canvas.setFocus()
 
     def _on_transparent_select_toggled(self, checked: bool) -> None:
         self._select_rect_tool.set_transparent(checked)

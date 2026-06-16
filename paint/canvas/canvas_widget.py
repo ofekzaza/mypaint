@@ -547,9 +547,9 @@ class CanvasWidget(QGraphicsView):
 
         # Pixel grid
         if self._show_pixel_grid:
-            painter.setPen(QPen(QColor(200, 200, 200, 80), 1))
+            painter.setPen(QPen(QColor(200, 200, 200, 30), 1))
             factor = self._zoom_level / 100.0
-            if factor >= 4:
+            if factor >= 8:
                 scene_rect = self.mapToScene(self.viewport().rect()).boundingRect()
                 left = max(0, int(scene_rect.left()))
                 top = max(0, int(scene_rect.top()))
