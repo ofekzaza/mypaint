@@ -1,0 +1,15 @@
+pkgbase = mypaint
+	pkgdesc = Minimal MS Paint clone for Linux
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/ofekzaza/mypaint
+	arch = any
+	license = MIT
+	makedepends = uv
+	makedepends = python-installer
+	depends = python
+	depends = python-pyside6
+	source = mypaint-0.1.0.tar.gz::https://github.com/ofekzaza/mypaint/archive/v0.1.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = mypaint

@@ -25,9 +25,9 @@ from PySide6.QtWidgets import (
     QGraphicsView,
 )
 
-from paint.canvas.image_buffer import ImageBuffer
-from paint.canvas.undo_manager import UndoManager
-from paint.services.theme_service import ThemeService
+from mypaint.canvas.image_buffer import ImageBuffer
+from mypaint.canvas.undo_manager import UndoManager
+from mypaint.services.theme_service import ThemeService
 
 ZOOM_LEVELS = [25, 50, 100, 200, 400, 800, 1600, 3200]
 

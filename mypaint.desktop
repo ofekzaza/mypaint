@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=mypaint
+Comment=MS Paint clone for Linux
+Exec=mypaint
+Icon=mypaint
+Terminal=false
+Type=Application
+Categories=Graphics;2DGraphics;
+StartupNotify=false

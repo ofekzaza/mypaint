@@ -1,4 +1,4 @@
-# Paint
+# mypaint
 
 A minimal MS Paint–style drawing application for Linux, built with PySide6.
 
@@ -27,7 +27,7 @@ fyi i dont know if you accually can do any of this, i dont have power to go over
 ## Usage
 
 ```bash
-uv run paint
+uv run mypaint
 ```
 
 ## License

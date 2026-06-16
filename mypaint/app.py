@@ -9,7 +9,7 @@ def create_app() -> QApplication:
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
     app = QApplication(sys.argv)
-    app.setApplicationName("Paint")
+    app.setApplicationName("mypaint")
     app.setOrganizationName("Omarchy")
     app.setStyle("Fusion")
 

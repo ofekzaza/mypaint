@@ -20,19 +20,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from paint.canvas.canvas_widget import CanvasWidget
-from paint.dialogs.properties_dialog import PropertiesDialog
-from paint.dialogs.resize_dialog import ResizeDialog
-from paint.services.clipboard_service import ClipboardService
-from paint.services.file_service import FileService
-from paint.tools.brush_tool import BrushTool
-from paint.tools.color_picker_tool import ColorPickerTool
-from paint.tools.eraser_tool import EraserTool
-from paint.tools.fill_tool import FillTool
-from paint.tools.magnifier_tool import MagnifierTool
-from paint.tools.pencil_tool import PencilTool
-from paint.tools.selection_tool import SelectionTool
-from paint.tools.shape_tools import (
+from mypaint.canvas.canvas_widget import CanvasWidget
+from mypaint.dialogs.properties_dialog import PropertiesDialog
+from mypaint.dialogs.resize_dialog import ResizeDialog
+from mypaint.services.clipboard_service import ClipboardService
+from mypaint.services.file_service import FileService
+from mypaint.tools.brush_tool import BrushTool
+from mypaint.tools.color_picker_tool import ColorPickerTool
+from mypaint.tools.eraser_tool import EraserTool
+from mypaint.tools.fill_tool import FillTool
+from mypaint.tools.magnifier_tool import MagnifierTool
+from mypaint.tools.pencil_tool import PencilTool
+from mypaint.tools.selection_tool import SelectionTool
+from mypaint.tools.shape_tools import (
     ArrowDownTool,
     ArrowLeftTool,
     ArrowRightTool,
@@ -50,18 +50,18 @@ from paint.tools.shape_tools import (
     RectangleTool,
     RoundedRectTool,
 )
-from paint.tools.text_tool import TextTool
-from paint.widgets.color_palette import ColorPalette
-from paint.widgets.rulers import HRuler, VRuler
-from paint.widgets.size_selector import SizeSelector
-from paint.widgets.thumbnail_window import ThumbnailWindow
-from paint.widgets.tool_palette import ToolPalette
+from mypaint.tools.text_tool import TextTool
+from mypaint.widgets.color_palette import ColorPalette
+from mypaint.widgets.rulers import HRuler, VRuler
+from mypaint.widgets.size_selector import SizeSelector
+from mypaint.widgets.thumbnail_window import ThumbnailWindow
+from mypaint.widgets.tool_palette import ToolPalette
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Paint")
+        self.setWindowTitle("mypaint")
         self.resize(1280, 800)
 
         self._file_service = FileService()
@@ -777,7 +777,7 @@ class MainWindow(QMainWindow):
         if not self.canvas.is_dirty():
             return True
         msg = QMessageBox(self)
-        msg.setWindowTitle("Paint")
+        msg.setWindowTitle("mypaint")
         msg.setText("Do you want to save changes?")
         msg.setInformativeText("Your changes will be lost if you don't save them.")
         msg.setStandardButtons(
