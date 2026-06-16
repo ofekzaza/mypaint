@@ -85,12 +85,12 @@ class ColorPalette(QFrame):
 
         self._color1_preview = ColorSwatch(self._color1)
         self._color1_preview.setFixedSize(28, 28)
-        self._color1_preview.clicked.connect(lambda c, b: self._on_edit_colors(False, c))
+        self._color1_preview.clicked.connect(lambda c, b: self._on_edit_colors(False))
         indicators.addWidget(self._color1_preview)
 
         self._color2_preview = ColorSwatch(self._color2)
         self._color2_preview.setFixedSize(28, 28)
-        self._color2_preview.clicked.connect(lambda c, b: self._on_edit_colors(True, c))
+        self._color2_preview.clicked.connect(lambda c, b: self._on_edit_colors(True))
         indicators.addWidget(self._color2_preview)
 
         layout.addLayout(indicators)

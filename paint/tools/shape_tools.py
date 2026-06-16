@@ -450,7 +450,6 @@ class PolygonTool(BaseTool):
             self._finalize_polygon()
         else:
             self._vertices.append(pos)
-            self._render_polygon()
 
         self.canvas.update_preview()
 

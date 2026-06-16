@@ -268,10 +268,11 @@ class SelectionTool(BaseTool):
     def _scale_content_to_rect(self, new_rect: QRect) -> None:
         if self._selection_content is None or new_rect.isEmpty():
             return
+        mode = Qt.TransformationMode.FastTransformation if self._transparent_select else Qt.TransformationMode.SmoothTransformation
         self._selection_content = self._selection_content.scaled(
             new_rect.size(),
             Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            mode,
         )
 
     def mouse_press_event(self, event: QMouseEvent) -> None:

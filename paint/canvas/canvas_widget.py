@@ -287,7 +287,7 @@ class CanvasWidget(QGraphicsView):
         transform.scale(factor, factor)
         self.setTransform(transform)
         self.zoom_changed.emit(self._zoom_level)
-        self._show_pixel_grid = self._zoom_level >= 400
+        self._show_pixel_grid = self._zoom_level >= 800
         self.update()
 
     def zoom_in(self) -> None:
