@@ -420,8 +420,6 @@ class MainWindow(QMainWindow):
 
         self._text_font_combo = QComboBox()
         self._text_font_combo.addItems(QFontDatabase().families())
-        self._text_font_combo.setCurrentText("FreeSans")
-        self._text_font_combo.setMinimumWidth(120)
         self._text_font_combo.currentTextChanged.connect(self._on_text_font_changed)
         text_grid.addWidget(self._text_font_combo, 0, 0, 1, 4)
 
@@ -515,6 +513,7 @@ class MainWindow(QMainWindow):
     def _show_text_toolbar(self) -> None:
         self._text_inline_frame.setVisible(True)
         self._size_selector.setVisible(False)
+        self.canvas.setFocus()
 
     def _hide_text_toolbar(self) -> None:
         self._text_inline_frame.setVisible(False)
