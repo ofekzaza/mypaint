@@ -9,6 +9,8 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPainter,
     QPen,
+    QTextCharFormat,
+    QTextCursor,
     QTextDocument,
 )
 
@@ -40,6 +42,11 @@ class TextTool(BaseTool):
         self._italic = False
         self._underline = False
         self._strikeout = False
+        self._char_bold: list[bool] = []
+        self._char_italic: list[bool] = []
+        self._char_underline: list[bool] = []
+        self._char_strikeout: list[bool] = []
+        self._char_color: list[QColor] = []
         self._text_color = QColor(0, 0, 0)
         self._background_mode = "transparent"
         self._background_color = QColor(255, 255, 255)
@@ -98,6 +105,26 @@ class TextTool(BaseTool):
     def is_editing(self) -> bool:
         return self._editing
 
+    def _apply_char_formats(self, doc: QTextDocument) -> None:
+        cursor = QTextCursor(doc)
+        for i, ch in enumerate(self._text):
+            cursor.setPosition(i)
+            cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor)
+            fmt = QTextCharFormat()
+            if i < len(self._char_color):
+                fmt.setForeground(QBrush(self._char_color[i]))
+            else:
+                fmt.setForeground(QBrush(self.canvas.color1))
+            if i < len(self._char_bold) and self._char_bold[i]:
+                fmt.setFontWeight(QFont.Weight.Bold)
+            if i < len(self._char_italic) and self._char_italic[i]:
+                fmt.setFontItalic(True)
+            if i < len(self._char_underline) and self._char_underline[i]:
+                fmt.setFontUnderline(True)
+            if i < len(self._char_strikeout) and self._char_strikeout[i]:
+                fmt.setFontStrikeOut(True)
+            cursor.mergeCharFormat(fmt)
+
     def commit(self) -> None:
         if not self._editing or not self._rect.isValid() or not self._text:
             self._cancel()
@@ -111,11 +138,11 @@ class TextTool(BaseTool):
 
         font = self._make_font()
         painter.setFont(font)
-        painter.setPen(QPen(self.canvas.color1))
 
         doc = QTextDocument(self._text)
         doc.setDefaultFont(font)
         doc.setTextWidth(max(self._rect.width(), 1))
+        self._apply_char_formats(doc)
 
         painter.save()
         painter.translate(self._rect.topLeft())
@@ -134,6 +161,11 @@ class TextTool(BaseTool):
         self._rect = QRectF()
         self._text = ""
         self._cursor_pos = 0
+        self._char_bold.clear()
+        self._char_italic.clear()
+        self._char_underline.clear()
+        self._char_strikeout.clear()
+        self._char_color.clear()
         self._resize_handle = -1
         self.canvas.update_preview()
         self.editing_finished.emit()
@@ -191,17 +223,26 @@ class TextTool(BaseTool):
         }
         return QCursor(cursors.get(handle, Qt.CursorShape.ArrowCursor))
 
-    def _caret_rect(self) -> QRectF:
-        font = self._make_font()
-        fm = QFontMetrics(font)
-        text_before = self._text[: self._cursor_pos]
-        lines = text_before.split("\n")
-        last_line = lines[-1] if lines else ""
-        text_width = fm.horizontalAdvance(last_line)
-        line_count = len(lines) - 1
-        caret_x = self._rect.x() + text_width
-        caret_y = self._rect.y() + (line_count + 1) * fm.height()
-        return QRectF(caret_x, caret_y - fm.ascent(), 1, fm.height())
+    def _caret_rect(self, doc: QTextDocument) -> QRectF:
+        cursor = QTextCursor(doc)
+        cursor.setPosition(self._cursor_pos)
+        block = cursor.block()
+        block_layout = block.layout()
+        block_rect = doc.documentLayout().blockBoundingRect(block)
+        pos_in_block = self._cursor_pos - block.position()
+        line = block_layout.lineForTextPosition(pos_in_block)
+
+        if line.isValid():
+            cursor_x, _ = line.cursorToX(pos_in_block)
+            line_rect = line.rect()
+            return QRectF(
+                self._rect.x() + cursor_x,
+                self._rect.y() + block_rect.y() + line_rect.y(),
+                1,
+                line_rect.height(),
+            )
+
+        return QRectF(self._rect.x(), self._rect.y(), 1, block_rect.height())
 
     def mouse_press_event(self, event: QMouseEvent) -> None:
         super().mouse_press_event(event)
@@ -307,6 +348,25 @@ class TextTool(BaseTool):
             self._drag_offset = QPointF()
             return
 
+    def _insert_char_format(self, pos: int, count: int = 1) -> None:
+        attrs = (self._bold, self._italic, self._underline, self._strikeout)
+        for _ in range(count):
+            self._char_bold.insert(pos, attrs[0])
+            self._char_italic.insert(pos, attrs[1])
+            self._char_underline.insert(pos, attrs[2])
+            self._char_strikeout.insert(pos, attrs[3])
+            self._char_color.insert(pos, QColor(self.canvas.color1))
+
+    def _remove_char_format(self, pos: int, count: int = 1) -> None:
+        for _ in range(count):
+            if pos < len(self._char_bold):
+                del self._char_bold[pos]
+                del self._char_italic[pos]
+                del self._char_underline[pos]
+                del self._char_strikeout[pos]
+                if pos < len(self._char_color):
+                    del self._char_color[pos]
+
     def key_press_event(self, event: QKeyEvent) -> None:
         if not self._editing:
             if event.key() == Qt.Key.Key_Escape:
@@ -315,13 +375,16 @@ class TextTool(BaseTool):
 
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
             self._text += "\n"
+            self._insert_char_format(len(self._text) - 1)
             self._cursor_pos = len(self._text)
         elif event.key() == Qt.Key.Key_Backspace:
             if self._cursor_pos > 0:
+                self._remove_char_format(self._cursor_pos - 1)
                 self._text = self._text[: self._cursor_pos - 1] + self._text[self._cursor_pos :]
                 self._cursor_pos -= 1
         elif event.key() == Qt.Key.Key_Delete:
             if self._cursor_pos < len(self._text):
+                self._remove_char_format(self._cursor_pos)
                 self._text = self._text[: self._cursor_pos] + self._text[self._cursor_pos + 1 :]
         elif event.key() == Qt.Key.Key_Left:
             self._cursor_pos = max(0, self._cursor_pos - 1)
@@ -338,6 +401,7 @@ class TextTool(BaseTool):
             self._text = (
                 self._text[: self._cursor_pos] + event.text() + self._text[self._cursor_pos :]
             )
+            self._insert_char_format(self._cursor_pos, len(event.text()))
             self._cursor_pos += len(event.text())
         else:
             return
@@ -368,11 +432,11 @@ class TextTool(BaseTool):
 
         font = self._make_font()
         painter.setFont(font)
-        painter.setPen(QPen(self.canvas.color1))
 
         doc = QTextDocument(self._text)
         doc.setDefaultFont(font)
         doc.setTextWidth(max(r.width(), 1))
+        self._apply_char_formats(doc)
 
         painter.save()
         painter.translate(r.topLeft())
@@ -381,7 +445,7 @@ class TextTool(BaseTool):
         doc.drawContents(painter)
         painter.restore()
 
-        caret = self._caret_rect()
+        caret = self._caret_rect(doc)
         if self._cursor_pos <= len(self._text):
             painter.setPen(QPen(self.canvas.color1))
             painter.drawLine(

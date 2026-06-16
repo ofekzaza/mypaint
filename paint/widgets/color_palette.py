@@ -1,4 +1,4 @@
-from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QColorDialog, QFrame, QHBoxLayout, QToolButton, QVBoxLayout, QWidget
 
@@ -112,8 +112,9 @@ class ColorPalette(QFrame):
 
         self._edit_colors_btn = QToolButton()
         self._edit_colors_btn.setText("Edit\nColors")
-        self._edit_colors_btn.setToolTip("Choose any color from the color grid")
-        self._edit_colors_btn.clicked.connect(self._on_edit_colors)
+        self._edit_colors_btn.setToolTip("Left-click: edit color 1 | Right-click: edit color 2")
+        self._edit_colors_btn.clicked.connect(lambda: self._on_edit_colors(False))
+        self._edit_colors_btn.installEventFilter(self)
         layout.addWidget(self._edit_colors_btn)
 
     @property
@@ -148,7 +149,18 @@ class ColorPalette(QFrame):
         elif button == Qt.MouseButton.RightButton:
             self.color2 = color
 
-    def _on_edit_colors(self) -> None:
-        dialog = QColorDialog(self._color1, self)
+    def _on_edit_colors(self, edit_color2: bool = False) -> None:
+        initial = self._color2 if edit_color2 else self._color1
+        dialog = QColorDialog(initial, self)
         if dialog.exec():
-            self.color1 = dialog.currentColor()
+            if edit_color2:
+                self.color2 = dialog.currentColor()
+            else:
+                self.color1 = dialog.currentColor()
+
+    def eventFilter(self, obj, event) -> bool:
+        if obj is self._edit_colors_btn and event.type() == QEvent.Type.MouseButtonRelease:
+            if event.button() == Qt.MouseButton.RightButton:
+                self._on_edit_colors(True)
+                return True
+        return super().eventFilter(obj, event)

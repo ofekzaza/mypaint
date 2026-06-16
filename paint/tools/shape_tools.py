@@ -33,6 +33,7 @@ class ShapeTool(BaseTool):
         self._start_point: QPoint | None = None
         self._current_point: QPoint | None = None
         self._shift_pressed = False
+        self._pressed_button = Qt.MouseButton.NoButton
 
     def name(self) -> str:
         return self._shape_name.capitalize()
@@ -53,6 +54,7 @@ class ShapeTool(BaseTool):
         super().mouse_press_event(event)
         if event.button() not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
+        self._pressed_button = event.button()
         self._drawing = True
         self._start_point = self.canvas.map_scene_to_image(event.position().toPoint())
         self._current_point = self._start_point
@@ -105,9 +107,13 @@ class ShapeTool(BaseTool):
         return QRectF(p1, p2).normalized()
 
     def _get_color1(self) -> QColor:
+        if self._pressed_button == Qt.MouseButton.RightButton:
+            return QColor(self.canvas.color2)
         return QColor(self.canvas.color1)
 
     def _get_color2(self) -> QColor:
+        if self._pressed_button == Qt.MouseButton.RightButton:
+            return QColor(self.canvas.color1)
         return QColor(self.canvas.color2)
 
     def _make_pen(self) -> QPen:
@@ -212,6 +218,8 @@ class CurveTool(BaseTool):
     STATE_BEND1 = 1  # waiting for first bend click
     STATE_BEND2 = 2  # waiting for second bend click (finalizes)
 
+    MIN_DRAG_DIST = 3  # minimum pixels to count as a real line
+
     def __init__(self, canvas_widget):
         super().__init__(canvas_widget)
         self._size = 1
@@ -254,6 +262,7 @@ class CurveTool(BaseTool):
         self.canvas.update_preview()
 
     def mouse_press_event(self, event: QMouseEvent) -> None:
+        super().mouse_press_event(event)
         if event.button() != Qt.MouseButton.LeftButton:
             return
         pos = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
@@ -288,11 +297,25 @@ class CurveTool(BaseTool):
     def mouse_release_event(self, event: QMouseEvent) -> None:
         if self._state == self.STATE_LINE and self._drawing:
             self._drawing = False
+            dx = abs(self._end_point.x() - self._start_point.x())
+            dy = abs(self._end_point.y() - self._start_point.y())
+            if dx < self.MIN_DRAG_DIST and dy < self.MIN_DRAG_DIST:
+                self._reset()
+                return
             self._state = self.STATE_BEND1
             self.canvas.update_preview()
+        super().mouse_release_event(event)
+
+    def mouse_double_click_event(self, event: QMouseEvent) -> None:
+        if self._state == self.STATE_BEND1 and self._start_point and self._end_point:
+            self._curve_point1 = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
+            self._curve_point2 = self._curve_point1
+            self._finalize_curve()
+            self._reset()
 
     def _finalize_curve(self) -> None:
         if self._start_point is None or self._end_point is None or self._curve_point1 is None:
+            self._reset()
             return
         p0 = self._start_point
         p3 = self._end_point
@@ -347,6 +370,8 @@ class CurveTool(BaseTool):
 
 
 class PolygonTool(BaseTool):
+    CLOSE_DIST = 10  # image-pixel proximity to close polygon
+
     def __init__(self, canvas_widget):
         super().__init__(canvas_widget)
         self._size = 1
@@ -355,6 +380,7 @@ class PolygonTool(BaseTool):
         self._vertices: list[QPointF] = []
         self._building = False
         self._current_pos: QPointF | None = None
+        self._near_start = False
 
     def name(self) -> str:
         return "Polygon"
@@ -383,7 +409,34 @@ class PolygonTool(BaseTool):
     def _make_fill_brush(self) -> QBrush:
         return QBrush(QColor(self.canvas.color2))
 
+    def _finalize_polygon(self) -> None:
+        if len(self._vertices) < 3:
+            self._building = False
+            self._vertices.clear()
+            self._current_pos = None
+            self._near_start = False
+            self.canvas.update_preview()
+            return
+        self._building = False
+        self._render_polygon(final=True)
+        self.canvas.commit_drawing()
+        self._vertices.clear()
+        self._current_pos = None
+        self._near_start = False
+        self.canvas.update_preview()
+
+    def _near_first_vertex(self, pos: QPointF) -> bool:
+        if not self._vertices:
+            return False
+        first = self._vertices[0]
+        dx = pos.x() - first.x()
+        dy = pos.y() - first.y()
+        return (dx * dx + dy * dy) <= self.CLOSE_DIST * self.CLOSE_DIST
+
     def mouse_press_event(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton and self._building:
+            self._finalize_polygon()
+            return
         if event.button() != Qt.MouseButton.LeftButton:
             return
         pos = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
@@ -391,6 +444,10 @@ class PolygonTool(BaseTool):
         if not self._building:
             self._building = True
             self._vertices = [pos]
+            self._near_start = False
+        elif self._near_start and len(self._vertices) >= 3:
+            self._vertices.append(pos)
+            self._finalize_polygon()
         else:
             self._vertices.append(pos)
             self._render_polygon()
@@ -402,38 +459,46 @@ class PolygonTool(BaseTool):
         pos = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
         self._current_pos = pos
         if self._building:
+            self._near_start = self._near_first_vertex(pos)
             self.canvas.update_preview()
 
     def mouse_double_click_event(self, event: QMouseEvent) -> None:
-        if self._building and len(self._vertices) >= 3:
-            self._building = False
-            self._render_polygon(final=True)
-            self.canvas.commit_drawing()
-            self._vertices.clear()
-            self._current_pos = None
-            self.canvas.update_preview()
+        if self._building:
+            pos = QPointF(self.canvas.map_scene_to_image(event.position().toPoint()))
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._vertices.append(pos)
+            self._finalize_polygon()
 
     def mouse_release_event(self, event: QMouseEvent) -> None:
-        pass
+        super().mouse_release_event(event)
 
     def paint_overlay(self, painter: QPainter) -> None:
         if not self._building or not self._vertices:
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        pen = QPen(QColor(100, 100, 255), 1, Qt.PenStyle.DashLine)
-        painter.setPen(pen)
+
+        pts = list(self._vertices)
+        if self._current_pos:
+            pts.append(self._current_pos)
+
+        preview_pen = QPen(QColor(100, 100, 255), 1, Qt.PenStyle.DashLine)
+        if self._near_start and len(self._vertices) >= 3:
+            preview_pen = QPen(QColor(0, 200, 0), 2, Qt.PenStyle.SolidLine)
+        painter.setPen(preview_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
-        polygon = QPolygonF(self._vertices)
-        if self._current_pos:
-            pts = list(self._vertices) + [self._current_pos]
-            polygon2 = QPolygonF(pts)
-            painter.drawPolyline(polygon2)
-        else:
-            painter.drawPolygon(polygon)
+        if len(pts) >= 2:
+            polygon = QPolygonF(pts)
+            painter.drawPolyline(polygon)
 
         for v in self._vertices:
             painter.drawEllipse(v, 2, 2)
+
+        if self._near_start and self._vertices:
+            first = self._vertices[0]
+            painter.setPen(QPen(QColor(0, 200, 0), 2, Qt.PenStyle.SolidLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(first, 4, 4)
 
     def _render_polygon(self, final: bool = False) -> None:
         if len(self._vertices) < 2:
@@ -461,4 +526,5 @@ class PolygonTool(BaseTool):
             self._building = False
             self._vertices.clear()
             self._current_pos = None
+            self._near_start = False
             self.canvas.update_preview()

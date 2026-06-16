@@ -68,17 +68,17 @@ class EraserTool(BaseTool):
 
     def _erase_at(self, pos: QPoint) -> None:
         painter = QPainter(self.canvas.image())
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         r = self._size // 2
-        painter.fillRect(QRect(pos.x() - r, pos.y() - r, self._size, self._size), Qt.GlobalColor.transparent)
+        painter.fillRect(QRect(pos.x() - r, pos.y() - r, self._size, self._size), Qt.GlobalColor.white)
         painter.end()
         self.canvas.update_image_item()
 
     def _erase_line(self, p1: QPoint, p2: QPoint) -> None:
         painter = QPainter(self.canvas.image())
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         pen = QPen(
-            Qt.GlobalColor.transparent,
+            Qt.GlobalColor.white,
             self._size,
             Qt.PenStyle.SolidLine,
             Qt.PenCapStyle.RoundCap,

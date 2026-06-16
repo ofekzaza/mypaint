@@ -1,5 +1,5 @@
 from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QGridLayout, QToolButton
 
 TOOL_NAMES = [
@@ -70,7 +70,9 @@ def _render_tool_icon(tool_name: str, size: int = 24) -> QIcon:
         painter.drawLine(cx - s8, cy + s4, cx, cy + s4 + s4)
         painter.drawLine(cx, cy + s4 + s4, cx + s4, cy - s4)
     elif tool_name == "picker":
-        painter.drawLine(cx - s4, cy + s4, cx + s4, cy - s4)
+        painter.drawRect(cx - s4, cy - s4, s4, s4 + s4)
+        painter.drawLine(cx, cy + s4 + s4, cx + s4, cy + s4 + s4 + s4)
+        painter.drawLine(cx + s4, cy + s4 + s4 + s4, cx + s4 + 2, cy + s4 + s4 + s4 - 2)
     elif tool_name == "magnifier":
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(cx - s3, cy - s3, s3 * 2, s3 * 2)
@@ -81,8 +83,13 @@ def _render_tool_icon(tool_name: str, size: int = 24) -> QIcon:
             Qt.AlignmentFlag.AlignCenter,
             "A",
         )
-    elif tool_name in ("line", "curve"):
+    elif tool_name == "line":
         painter.drawLine(cx - s4, cy + s4, cx + s4, cy - s4)
+    elif tool_name == "curve":
+        path = QPainterPath()
+        path.moveTo(cx - s4, cy + s4)
+        path.cubicTo(cx - s8, cy - s4, cx + s8, cy + s4, cx + s4, cy - s4)
+        painter.drawPath(path)
     elif tool_name == "rectangle":
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(QRect(cx - s4, cy - s4, size // 2, size // 2))

@@ -387,27 +387,7 @@ class MainWindow(QMainWindow):
         self._size_selector.setFixedWidth(80)
         layout.addWidget(self._size_selector)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.VLine)
-        sep2.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep2)
-
-        fill_frame = QWidget()
-        fill_layout = QHBoxLayout(fill_frame)
-        fill_layout.setContentsMargins(0, 0, 0, 0)
-        fill_layout.setSpacing(4)
-        self._fill_mode_label = QLabel("Fill:")
-        fill_layout.addWidget(self._fill_mode_label)
-        self._fill_mode_combo.setFixedWidth(100)
-        fill_layout.addWidget(self._fill_mode_combo)
-        self._stroke_style_combo.setFixedWidth(80)
-        fill_layout.addWidget(self._stroke_style_combo)
-        self._fill_mode_label.setVisible(False)
-        self._fill_mode_combo.setVisible(False)
-        self._stroke_style_combo.setVisible(False)
-        layout.addWidget(fill_frame)
-
-        # Inline text toolbar — shown only when editing text
+        # Inline text toolbar — shown only when editing text (replaces size selector)
         self._text_inline_frame = QFrame()
         self._text_inline_frame.setVisible(False)
         text_grid = QGridLayout(self._text_inline_frame)
@@ -464,6 +444,26 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self._text_inline_frame)
 
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.VLine)
+        sep2.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep2)
+
+        fill_frame = QWidget()
+        fill_layout = QHBoxLayout(fill_frame)
+        fill_layout.setContentsMargins(0, 0, 0, 0)
+        fill_layout.setSpacing(4)
+        self._fill_mode_label = QLabel("Fill:")
+        fill_layout.addWidget(self._fill_mode_label)
+        self._fill_mode_combo.setFixedWidth(100)
+        fill_layout.addWidget(self._fill_mode_combo)
+        self._stroke_style_combo.setFixedWidth(80)
+        fill_layout.addWidget(self._stroke_style_combo)
+        self._fill_mode_label.setVisible(False)
+        self._fill_mode_combo.setVisible(False)
+        self._stroke_style_combo.setVisible(False)
+        layout.addWidget(fill_frame)
+
         # Transparent selection checkbox — shown only when a selection tool is active
         self._transparent_select_check = QCheckBox("Transparent selection")
         self._transparent_select_check.setVisible(False)
@@ -491,9 +491,13 @@ class MainWindow(QMainWindow):
 
     def _show_text_toolbar(self) -> None:
         self._text_inline_frame.setVisible(True)
+        self._size_selector.setVisible(False)
 
     def _hide_text_toolbar(self) -> None:
         self._text_inline_frame.setVisible(False)
+        tool_name = self._tool_palette.active_tool
+        size_tools = {"pencil", "brush", "eraser", "line", "curve", "rectangle", "ellipse", "rounded_rect", "polygon"}
+        self._size_selector.setVisible(tool_name in size_tools)
 
     def _on_text_editing_started(self) -> None:
         self._show_text_toolbar()
