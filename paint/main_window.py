@@ -1,3 +1,4 @@
+import os
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QFontDatabase, QKeySequence, QTransform
 from PySide6.QtWidgets import (
@@ -32,6 +33,10 @@ from paint.tools.magnifier_tool import MagnifierTool
 from paint.tools.pencil_tool import PencilTool
 from paint.tools.selection_tool import SelectionTool
 from paint.tools.shape_tools import (
+    ArrowDownTool,
+    ArrowLeftTool,
+    ArrowRightTool,
+    ArrowUpTool,
     FILL_BOTH,
     FILL_FILL,
     FILL_OUTLINE,
@@ -140,6 +145,10 @@ class MainWindow(QMainWindow):
         ellipse = EllipseTool(self.canvas)
         rounded_rect = RoundedRectTool(self.canvas)
         polygon = PolygonTool(self.canvas)
+        arrow_right = ArrowRightTool(self.canvas)
+        arrow_left = ArrowLeftTool(self.canvas)
+        arrow_up = ArrowUpTool(self.canvas)
+        arrow_down = ArrowDownTool(self.canvas)
 
         tools = {
             "pencil": pencil,
@@ -157,6 +166,10 @@ class MainWindow(QMainWindow):
             "ellipse": ellipse,
             "rounded_rect": rounded_rect,
             "polygon": polygon,
+            "arrow_right": arrow_right,
+            "arrow_left": arrow_left,
+            "arrow_up": arrow_up,
+            "arrow_down": arrow_down,
         }
 
         for name, tool in tools.items():
@@ -179,6 +192,10 @@ class MainWindow(QMainWindow):
         self._ellipse_tool = ellipse
         self._rounded_rect_tool = rounded_rect
         self._polygon_tool = polygon
+        self._arrow_right_tool = arrow_right
+        self._arrow_left_tool = arrow_left
+        self._arrow_up_tool = arrow_up
+        self._arrow_down_tool = arrow_down
 
     def _setup_widgets(self) -> None:
         self._tool_palette = ToolPalette()
@@ -208,7 +225,7 @@ class MainWindow(QMainWindow):
     def _on_tool_selected(self, tool_name: str) -> None:
         self.canvas.set_active_tool(tool_name)
 
-        shape_tools = {"line", "curve", "rectangle", "ellipse", "rounded_rect", "polygon"}
+        shape_tools = {"line", "curve", "rectangle", "ellipse", "rounded_rect", "polygon", "arrow_right", "arrow_left", "arrow_up", "arrow_down"}
         size_tools = {"pencil", "brush", "eraser", "line"} | shape_tools
         select_tools = {"select_rect", "select_freeform"}
 
@@ -217,7 +234,6 @@ class MainWindow(QMainWindow):
         show_fill = tool_name in shape_tools
         self._fill_mode_combo.setVisible(show_fill)
         self._stroke_style_combo.setVisible(show_fill)
-        self._fill_mode_label.setVisible(show_fill)
 
         self._transparent_select_check.setVisible(tool_name in select_tools)
 
@@ -387,8 +403,13 @@ class MainWindow(QMainWindow):
         sep1.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(sep1)
 
+        opts_frame = QWidget()
+        opts_layout = QVBoxLayout(opts_frame)
+        opts_layout.setContentsMargins(0, 0, 0, 0)
+        opts_layout.setSpacing(2)
+
         self._size_selector.setFixedWidth(80)
-        layout.addWidget(self._size_selector)
+        opts_layout.addWidget(self._size_selector)
 
         # Inline text toolbar — shown only when editing text (replaces size selector)
         self._text_inline_frame = QFrame()
@@ -445,33 +466,28 @@ class MainWindow(QMainWindow):
         self._text_bg_check.toggled.connect(self._on_text_bg_mode)
         text_grid.addWidget(self._text_bg_check, 3, 0, 1, 4)
 
-        layout.addWidget(self._text_inline_frame)
+        opts_layout.addWidget(self._text_inline_frame)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.VLine)
-        sep2.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep2)
-
-        fill_frame = QWidget()
-        fill_layout = QHBoxLayout(fill_frame)
-        fill_layout.setContentsMargins(0, 0, 0, 0)
-        fill_layout.setSpacing(4)
-        self._fill_mode_label = QLabel("Fill:")
-        fill_layout.addWidget(self._fill_mode_label)
         self._fill_mode_combo.setFixedWidth(100)
-        fill_layout.addWidget(self._fill_mode_combo)
+        opts_layout.addWidget(self._fill_mode_combo)
         self._stroke_style_combo.setFixedWidth(80)
-        fill_layout.addWidget(self._stroke_style_combo)
-        self._fill_mode_label.setVisible(False)
+        opts_layout.addWidget(self._stroke_style_combo)
         self._fill_mode_combo.setVisible(False)
         self._stroke_style_combo.setVisible(False)
-        layout.addWidget(fill_frame)
 
         # Transparent selection checkbox — shown only when a selection tool is active
         self._transparent_select_check = QCheckBox("Transparent selection")
         self._transparent_select_check.setVisible(False)
         self._transparent_select_check.toggled.connect(self._on_transparent_select_toggled)
-        layout.addWidget(self._transparent_select_check)
+        opts_layout.addWidget(self._transparent_select_check)
+
+        opts_layout.addStretch()
+        layout.addWidget(opts_frame)
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.VLine)
+        sep2.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep2)
 
         layout.addStretch()
 
@@ -503,7 +519,7 @@ class MainWindow(QMainWindow):
     def _hide_text_toolbar(self) -> None:
         self._text_inline_frame.setVisible(False)
         tool_name = self._tool_palette.active_tool
-        size_tools = {"pencil", "brush", "eraser", "line", "curve", "rectangle", "ellipse", "rounded_rect", "polygon"}
+        size_tools = {"pencil", "brush", "eraser", "line", "curve", "rectangle", "ellipse", "rounded_rect", "polygon", "arrow_right", "arrow_left", "arrow_up", "arrow_down"}
         self._size_selector.setVisible(tool_name in size_tools)
 
     def _on_text_editing_started(self) -> None:
@@ -569,7 +585,7 @@ class MainWindow(QMainWindow):
 
     def _file_save(self) -> bool:
         path = self.canvas.file_path()
-        if path:
+        if path and os.path.exists(path):
             result = self._file_service.save_image(self, self.canvas.image(), path)
             if result:
                 self.canvas.set_file_path(result)

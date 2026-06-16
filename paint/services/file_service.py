@@ -1,3 +1,4 @@
+import os
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -13,6 +14,14 @@ SUPPORTED_SAVE_FORMATS: dict[str, str] = {
     "PNG (*.png)": "png",
     "BMP (*.bmp)": "bmp",
     "JPEG (*.jpg *.jpeg)": "jpg",
+}
+
+# Map from format extension to the preferred filter key
+EXT_TO_FILTER: dict[str, str] = {
+    "png": "PNG (*.png)",
+    "bmp": "BMP (*.bmp)",
+    "jpg": "JPEG (*.jpg *.jpeg)",
+    "jpeg": "JPEG (*.jpg *.jpeg)",
 }
 
 
@@ -50,6 +59,9 @@ class FileService:
                 return None
 
             img_format = SUPPORTED_SAVE_FORMATS.get(selected_filter, "png")
+            ext = "." + img_format
+            if not file_path.lower().endswith(ext):
+                file_path += ext
         else:
             ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else "png"
             img_format = format_hint or ext

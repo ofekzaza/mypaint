@@ -187,6 +187,148 @@ class ShapeTool(BaseTool):
                 target_painter.setPen(outline_pen)
                 target_painter.drawRoundedRect(rect, radius, radius)
 
+        elif self._shape_name == "arrow_right":
+            rect = self._get_rect()
+            if rect.width() < 4 or rect.height() < 4:
+                return
+            cy = rect.center().y()
+            left = rect.left()
+            right = rect.right()
+            body_right = right - rect.height() * 0.4
+            head_width = rect.height() * 0.4
+            if self._fill_mode in (FILL_FILL, FILL_BOTH):
+                path = QPainterPath()
+                path.moveTo(left, cy - self._size / 2)
+                path.lineTo(body_right, cy - self._size / 2)
+                path.lineTo(body_right, rect.top())
+                path.lineTo(right, cy)
+                path.lineTo(body_right, rect.bottom())
+                path.lineTo(body_right, cy + self._size / 2)
+                path.lineTo(left, cy + self._size / 2)
+                path.closeSubpath()
+                target_painter.setBrush(fill_brush)
+                target_painter.setPen(Qt.PenStyle.NoPen)
+                target_painter.drawPath(path)
+            if self._fill_mode in (FILL_OUTLINE, FILL_BOTH):
+                target_painter.setBrush(Qt.BrushStyle.NoBrush)
+                target_painter.setPen(outline_pen)
+                path = QPainterPath()
+                path.moveTo(left, cy)
+                path.lineTo(body_right, cy)
+                path.lineTo(body_right, rect.top())
+                path.lineTo(right, cy)
+                path.lineTo(body_right, rect.bottom())
+                path.lineTo(body_right, cy + self._size / 2)
+                path.lineTo(left, cy + self._size / 2)
+                path.closeSubpath()
+                target_painter.drawPath(path)
+
+        elif self._shape_name == "arrow_left":
+            rect = self._get_rect()
+            if rect.width() < 4 or rect.height() < 4:
+                return
+            cy = rect.center().y()
+            left = rect.left()
+            right = rect.right()
+            body_left = left + rect.height() * 0.4
+            head_width = rect.height() * 0.4
+            if self._fill_mode in (FILL_FILL, FILL_BOTH):
+                path = QPainterPath()
+                path.moveTo(right, cy - self._size / 2)
+                path.lineTo(body_left, cy - self._size / 2)
+                path.lineTo(body_left, rect.top())
+                path.lineTo(left, cy)
+                path.lineTo(body_left, rect.bottom())
+                path.lineTo(body_left, cy + self._size / 2)
+                path.lineTo(right, cy + self._size / 2)
+                path.closeSubpath()
+                target_painter.setBrush(fill_brush)
+                target_painter.setPen(Qt.PenStyle.NoPen)
+                target_painter.drawPath(path)
+            if self._fill_mode in (FILL_OUTLINE, FILL_BOTH):
+                target_painter.setBrush(Qt.BrushStyle.NoBrush)
+                target_painter.setPen(outline_pen)
+                path = QPainterPath()
+                path.moveTo(right, cy)
+                path.lineTo(body_left, cy)
+                path.lineTo(body_left, rect.top())
+                path.lineTo(left, cy)
+                path.lineTo(body_left, rect.bottom())
+                path.lineTo(body_left, cy + self._size / 2)
+                path.lineTo(right, cy + self._size / 2)
+                path.closeSubpath()
+                target_painter.drawPath(path)
+
+        elif self._shape_name == "arrow_up":
+            rect = self._get_rect()
+            if rect.width() < 4 or rect.height() < 4:
+                return
+            cx = rect.center().x()
+            top = rect.top()
+            bottom = rect.bottom()
+            body_top = top + rect.width() * 0.4
+            if self._fill_mode in (FILL_FILL, FILL_BOTH):
+                path = QPainterPath()
+                path.moveTo(cx - self._size / 2, bottom)
+                path.lineTo(cx - self._size / 2, body_top)
+                path.lineTo(rect.left(), body_top)
+                path.lineTo(cx, top)
+                path.lineTo(rect.right(), body_top)
+                path.lineTo(cx + self._size / 2, body_top)
+                path.lineTo(cx + self._size / 2, bottom)
+                path.closeSubpath()
+                target_painter.setBrush(fill_brush)
+                target_painter.setPen(Qt.PenStyle.NoPen)
+                target_painter.drawPath(path)
+            if self._fill_mode in (FILL_OUTLINE, FILL_BOTH):
+                target_painter.setBrush(Qt.BrushStyle.NoBrush)
+                target_painter.setPen(outline_pen)
+                path = QPainterPath()
+                path.moveTo(cx, top)
+                path.lineTo(rect.right(), body_top)
+                path.lineTo(cx + self._size / 2, body_top)
+                path.lineTo(cx + self._size / 2, bottom)
+                path.lineTo(cx - self._size / 2, bottom)
+                path.lineTo(cx - self._size / 2, body_top)
+                path.lineTo(rect.left(), body_top)
+                path.closeSubpath()
+                target_painter.drawPath(path)
+
+        elif self._shape_name == "arrow_down":
+            rect = self._get_rect()
+            if rect.width() < 4 or rect.height() < 4:
+                return
+            cx = rect.center().x()
+            top = rect.top()
+            bottom = rect.bottom()
+            body_bottom = bottom - rect.width() * 0.4
+            if self._fill_mode in (FILL_FILL, FILL_BOTH):
+                path = QPainterPath()
+                path.moveTo(cx - self._size / 2, top)
+                path.lineTo(cx - self._size / 2, body_bottom)
+                path.lineTo(rect.left(), body_bottom)
+                path.lineTo(cx, bottom)
+                path.lineTo(rect.right(), body_bottom)
+                path.lineTo(cx + self._size / 2, body_bottom)
+                path.lineTo(cx + self._size / 2, top)
+                path.closeSubpath()
+                target_painter.setBrush(fill_brush)
+                target_painter.setPen(Qt.PenStyle.NoPen)
+                target_painter.drawPath(path)
+            if self._fill_mode in (FILL_OUTLINE, FILL_BOTH):
+                target_painter.setBrush(Qt.BrushStyle.NoBrush)
+                target_painter.setPen(outline_pen)
+                path = QPainterPath()
+                path.moveTo(cx, bottom)
+                path.lineTo(rect.left(), body_bottom)
+                path.lineTo(cx - self._size / 2, body_bottom)
+                path.lineTo(cx - self._size / 2, top)
+                path.lineTo(cx + self._size / 2, top)
+                path.lineTo(cx + self._size / 2, body_bottom)
+                path.lineTo(rect.right(), body_bottom)
+                path.closeSubpath()
+                target_painter.drawPath(path)
+
         if own_painter:
             own_painter.end()
             if final:
@@ -327,7 +469,6 @@ class CurveTool(BaseTool):
         path.cubicTo(p1, p2, p3)
 
         painter = QPainter(self.canvas.preview_pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(self._make_pen())
         painter.drawPath(path)
         painter.end()
@@ -338,7 +479,6 @@ class CurveTool(BaseTool):
             self._reset()
 
     def paint_overlay(self, painter: QPainter) -> None:
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         if self._state == self.STATE_LINE and self._drawing and self._start_point and self._end_point:
             if self._start_point != self._end_point:
@@ -474,7 +614,6 @@ class PolygonTool(BaseTool):
     def paint_overlay(self, painter: QPainter) -> None:
         if not self._building or not self._vertices:
             return
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         pts = list(self._vertices)
         if self._current_pos:
@@ -504,7 +643,6 @@ class PolygonTool(BaseTool):
             return
 
         painter = QPainter(self.canvas.preview_pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         polygon = QPolygonF(self._vertices)
 
@@ -527,3 +665,23 @@ class PolygonTool(BaseTool):
             self._current_pos = None
             self._near_start = False
             self.canvas.update_preview()
+
+
+class ArrowRightTool(ShapeTool):
+    def __init__(self, canvas_widget):
+        super().__init__(canvas_widget, "arrow_right")
+
+
+class ArrowLeftTool(ShapeTool):
+    def __init__(self, canvas_widget):
+        super().__init__(canvas_widget, "arrow_left")
+
+
+class ArrowUpTool(ShapeTool):
+    def __init__(self, canvas_widget):
+        super().__init__(canvas_widget, "arrow_up")
+
+
+class ArrowDownTool(ShapeTool):
+    def __init__(self, canvas_widget):
+        super().__init__(canvas_widget, "arrow_down")

@@ -18,6 +18,10 @@ TOOL_NAMES = [
     "ellipse",
     "rounded_rect",
     "polygon",
+    "arrow_right",
+    "arrow_left",
+    "arrow_up",
+    "arrow_down",
 ]
 
 TOOL_LABELS = {
@@ -34,6 +38,10 @@ TOOL_LABELS = {
     "ellipse": "Ellipse",
     "rounded_rect": "Rounded Rectangle",
     "polygon": "Polygon",
+    "arrow_right": "Arrow \u2192",
+    "arrow_left": "Arrow \u2190",
+    "arrow_up": "Arrow \u2191",
+    "arrow_down": "Arrow \u2193",
     "select_rect": "Rectangular selection",
     "select_freeform": "Free-form selection",
 }
@@ -102,6 +110,62 @@ def _render_tool_icon(tool_name: str, size: int = 24) -> QIcon:
     elif tool_name == "polygon":
         pts = [QPoint(cx - s4, cy + s4), QPoint(cx, cy - s4), QPoint(cx + s4, cy + s4)]
         painter.drawPolygon(pts)
+    elif tool_name == "arrow_right":
+        path = QPainterPath()
+        path.moveTo(cx - s4, cy - 2)
+        path.lineTo(cx, cy - 2)
+        path.lineTo(cx, cy - s4)
+        path.lineTo(cx + s4, cy)
+        path.lineTo(cx, cy + s4)
+        path.lineTo(cx, cy + 2)
+        path.lineTo(cx - s4, cy + 2)
+        path.closeSubpath()
+        painter.setBrush(QColor(80, 80, 80))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+    elif tool_name == "arrow_left":
+        path = QPainterPath()
+        path.moveTo(cx + s4, cy - 2)
+        path.lineTo(cx - 0, cy - 2)
+        path.lineTo(cx - 0, cy - s4)
+        path.lineTo(cx - s4, cy)
+        path.lineTo(cx - 0, cy + s4)
+        path.lineTo(cx - 0, cy + 2)
+        path.lineTo(cx + s4, cy + 2)
+        path.closeSubpath()
+        painter.setBrush(QColor(80, 80, 80))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+    elif tool_name == "arrow_up":
+        path = QPainterPath()
+        path.moveTo(cx - 2, cy + s4)
+        path.lineTo(cx - 2, cy)
+        path.lineTo(cx - s4, cy)
+        path.lineTo(cx, cy - s4)
+        path.lineTo(cx + s4, cy)
+        path.lineTo(cx + 2, cy)
+        path.lineTo(cx + 2, cy + s4)
+        path.closeSubpath()
+        painter.setBrush(QColor(80, 80, 80))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+    elif tool_name == "arrow_down":
+        path = QPainterPath()
+        path.moveTo(cx - 2, cy - s4)
+        path.lineTo(cx - 2, cy + 0)
+        path.lineTo(cx - s4, cy + 0)
+        path.lineTo(cx, cy + s4)
+        path.lineTo(cx + s4, cy + 0)
+        path.lineTo(cx + 2, cy + 0)
+        path.lineTo(cx + 2, cy - s4)
+        path.closeSubpath()
+        painter.setBrush(QColor(80, 80, 80))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
     elif tool_name == "select_rect":
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(QColor(80, 80, 80), 1, Qt.PenStyle.DashLine))

@@ -474,6 +474,26 @@ class SelectionTool(BaseTool):
             self.delete_selection()
         elif event.key() == Qt.Key.Key_Escape:
             self.reset_selection()
+        elif event.key() == Qt.Key.Key_Left and self._has_selection:
+            if self._selection_from_canvas and self._move_origin_rect is None:
+                self._move_origin_rect = QRect(self._selection_rect)
+            self._selection_rect.translate(-1, 0)
+            self.canvas.update_preview()
+        elif event.key() == Qt.Key.Key_Right and self._has_selection:
+            if self._selection_from_canvas and self._move_origin_rect is None:
+                self._move_origin_rect = QRect(self._selection_rect)
+            self._selection_rect.translate(1, 0)
+            self.canvas.update_preview()
+        elif event.key() == Qt.Key.Key_Up and self._has_selection:
+            if self._selection_from_canvas and self._move_origin_rect is None:
+                self._move_origin_rect = QRect(self._selection_rect)
+            self._selection_rect.translate(0, -1)
+            self.canvas.update_preview()
+        elif event.key() == Qt.Key.Key_Down and self._has_selection:
+            if self._selection_from_canvas and self._move_origin_rect is None:
+                self._move_origin_rect = QRect(self._selection_rect)
+            self._selection_rect.translate(0, 1)
+            self.canvas.update_preview()
 
     def deactivate(self) -> None:
         if self._has_selection:

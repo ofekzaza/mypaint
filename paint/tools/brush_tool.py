@@ -75,7 +75,6 @@ class BrushTool(BaseTool):
 
     def _apply_brush(self, pos: QPoint, color: QColor) -> None:
         painter = QPainter(self.canvas.preview_pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         if self._brush_type == BRUSH_ROUND:
             painter.setBrush(QBrush(color))
@@ -98,7 +97,6 @@ class BrushTool(BaseTool):
 
     def _apply_brush_stroke(self, p1: QPoint, p2: QPoint, color: QColor) -> None:
         painter = QPainter(self.canvas.preview_pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         if self._brush_type in (BRUSH_ROUND, BRUSH_MARKER):
             pen = QPen(
