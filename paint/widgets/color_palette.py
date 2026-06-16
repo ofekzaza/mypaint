@@ -1,0 +1,154 @@
+from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QColorDialog, QFrame, QHBoxLayout, QVBoxLayout, QWidget
+
+DEFAULT_COLORS = [
+    QColor(0, 0, 0),
+    QColor(128, 128, 128),
+    QColor(192, 192, 192),
+    QColor(255, 255, 255),
+    QColor(128, 0, 0),
+    QColor(255, 0, 0),
+    QColor(255, 128, 128),
+    QColor(128, 128, 0),
+    QColor(255, 255, 0),
+    QColor(0, 128, 0),
+    QColor(0, 255, 0),
+    QColor(128, 255, 128),
+    QColor(0, 128, 128),
+    QColor(0, 255, 255),
+    QColor(128, 255, 255),
+    QColor(0, 0, 128),
+    QColor(0, 0, 255),
+    QColor(128, 128, 255),
+    QColor(128, 0, 128),
+    QColor(255, 0, 255),
+    QColor(255, 128, 255),
+    QColor(128, 64, 0),
+    QColor(255, 128, 0),
+    QColor(255, 192, 128),
+    QColor(64, 128, 64),
+    QColor(64, 64, 128),
+    QColor(192, 128, 64),
+    QColor(192, 192, 192),
+    QColor(255, 255, 255),
+    QColor(0, 0, 0),
+]
+
+SWATCH_SIZE = 20
+SWATCH_MARGIN = 2
+
+
+class ColorSwatch(QWidget):
+    clicked = Signal(QColor, Qt.MouseButton)
+
+    def __init__(self, color: QColor, parent=None):
+        super().__init__(parent)
+        self._color = color
+        self.setFixedSize(SWATCH_SIZE, SWATCH_SIZE)
+        self.setToolTip(color.name())
+
+    def set_color(self, color: QColor) -> None:
+        self._color = color
+        self.setToolTip(color.name())
+        self.update()
+
+    def color(self) -> QColor:
+        return self._color
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.fillRect(self.rect(), self._color)
+        painter.setPen(Qt.GlobalColor.gray)
+        painter.drawRect(QRect(0, 0, self.width() - 1, self.height() - 1))
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.clicked.emit(self._color, event.button())
+
+
+class ColorPalette(QFrame):
+    color1_changed = Signal(QColor)
+    color2_changed = Signal(QColor)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._color1 = QColor(0, 0, 0)
+        self._color2 = QColor(255, 255, 255)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setup_ui()
+
+    def setup_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+
+        indicators = QHBoxLayout()
+        indicators.setSpacing(2)
+
+        self._color1_preview = ColorSwatch(self._color1)
+        self._color1_preview.setFixedSize(28, 28)
+        self._color1_preview.clicked.connect(self._on_color1_edit)
+        indicators.addWidget(self._color1_preview)
+
+        self._color2_preview = ColorSwatch(self._color2)
+        self._color2_preview.setFixedSize(28, 28)
+        self._color2_preview.clicked.connect(self._on_color2_edit)
+        indicators.addWidget(self._color2_preview)
+
+        indicators.addStretch()
+        layout.addLayout(indicators)
+
+        swatch_layout = QHBoxLayout()
+        swatch_layout.setSpacing(SWATCH_MARGIN)
+        swatch_layout.setContentsMargins(0, 0, 0, 0)
+
+        for color in DEFAULT_COLORS:
+            swatch = ColorSwatch(color)
+            swatch.clicked.connect(self._on_swatch_clicked)
+            swatch_layout.addWidget(swatch)
+
+        swatch_layout.addStretch()
+        layout.addLayout(swatch_layout)
+
+    @property
+    def color1(self) -> QColor:
+        return self._color1
+
+    @color1.setter
+    def color1(self, color: QColor) -> None:
+        new_c = QColor(color)
+        if self._color1 == new_c:
+            return
+        self._color1 = new_c
+        self._color1_preview.set_color(self._color1)
+        self.color1_changed.emit(self._color1)
+
+    @property
+    def color2(self) -> QColor:
+        return self._color2
+
+    @color2.setter
+    def color2(self, color: QColor) -> None:
+        new_c = QColor(color)
+        if self._color2 == new_c:
+            return
+        self._color2 = new_c
+        self._color2_preview.set_color(self._color2)
+        self.color2_changed.emit(self._color2)
+
+    def _on_swatch_clicked(self, color: QColor, button: Qt.MouseButton) -> None:
+        if button == Qt.MouseButton.LeftButton:
+            self.color1 = color
+        elif button == Qt.MouseButton.RightButton:
+            self.color2 = color
+
+    def _on_color1_edit(self, color: QColor, button: Qt.MouseButton) -> None:
+        dialog = QColorDialog(self._color1, self)
+        if dialog.exec():
+            self.color1 = dialog.currentColor()
+
+    def _on_color2_edit(self, color: QColor, button: Qt.MouseButton) -> None:
+        dialog = QColorDialog(self._color2, self)
+        if dialog.exec():
+            self.color2 = dialog.currentColor()
