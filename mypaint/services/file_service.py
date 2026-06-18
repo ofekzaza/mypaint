@@ -1,13 +1,15 @@
 import os
-from PySide6.QtCore import QBuffer, QByteArray
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QBuffer, QByteArray, QSize, Qt
+from PySide6.QtGui import QImage, QPainter
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 SUPPORTED_OPEN_FORMATS = [
     "PNG (*.png)",
     "BMP (*.bmp)",
     "JPEG (*.jpg *.jpeg)",
-    "All Images (*.png *.bmp *.jpg *.jpeg)",
+    "SVG (*.svg)",
+    "All Images (*.png *.bmp *.jpg *.jpeg *.svg)",
 ]
 
 SUPPORTED_SAVE_FORMATS: dict[str, str] = {
@@ -22,6 +24,7 @@ EXT_TO_FILTER: dict[str, str] = {
     "bmp": "BMP (*.bmp)",
     "jpg": "JPEG (*.jpg *.jpeg)",
     "jpeg": "JPEG (*.jpg *.jpeg)",
+    "svg": "SVG (*.svg)",
 }
 
 
@@ -37,10 +40,30 @@ class FileService:
         )
         if not file_path:
             return None
+
+        if file_path.lower().endswith(".svg"):
+            return FileService._load_svg(file_path, parent)
+
         image = QImage(file_path)
         if image.isNull():
             QMessageBox.warning(parent, "Error", f"Could not load image: {file_path}")
             return None
+        return image
+
+    @staticmethod
+    def _load_svg(file_path: str, parent=None) -> QImage | None:
+        renderer = QSvgRenderer(file_path)
+        if not renderer.isValid():
+            QMessageBox.warning(parent, "Error", f"Could not load SVG: {file_path}")
+            return None
+        size = renderer.defaultSize()
+        if size.isEmpty() or size.width() <= 0 or size.height() <= 0:
+            size = QSize(800, 600)
+        image = QImage(size, QImage.Format.Format_ARGB32_Premultiplied)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        renderer.render(painter)
+        painter.end()
         return image
 
     @staticmethod
