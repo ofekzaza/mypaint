@@ -1,3 +1,5 @@
+![mypaint logo](mypaint.jpeg)
+
 # mypaint
 
 A minimal MS Paint–style drawing application for Linux, built with PySide6.
