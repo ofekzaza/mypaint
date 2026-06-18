@@ -1,4 +1,4 @@
-![mypaint logo](mypaint.jpeg)
+![mypaint logo](mypaint.svg)
 
 # mypaint
 
